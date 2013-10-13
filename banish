@@ -1,0 +1,94 @@
+#!/usr/bin/perl -w
+
+# Banish something from one directory to a special mirrored directory structure.
+use Cwd;
+use File::Copy;
+
+our $originaldir = "/media/music";
+our $subdir = "/media/music-norand";
+our $verbose=0;
+
+main();
+
+sub main
+{
+my ($files, $pretend) = handle_args();
+my @sfiles = map{sanitize_file($_);} @$files;
+my %plan = build_plan(@sfiles);
+if($pretend) {exit;}
+foreach my $file (keys %plan)
+	{
+	ensure_dirfor($plan{$file});
+	move($file, $plan{$file});
+	}
+}
+
+sub ensure_dirfor($;)
+{
+my ($tfile) = @_;
+$tfile =~ /^(.*)\/([^\/])+$/;
+my $dir = $1;
+if(! defined $dir)
+	{
+	die "Internal regex error\n";
+	}
+if($verbose)
+	{print "Making sure directory [$dir] exists\n";}
+system("mkdir -p $dir");
+}
+
+sub build_plan(@)
+{
+my @files = @_;
+my %plan;
+foreach my $file (@files)
+	{
+	my $newfn = $file;
+	$newfn =~ s/$originaldir/$subdir/;
+	$newfn =~ s/fromdad//;
+	$newfn =~ s/\/\//\//g;
+	if(($newfn eq $file) || (! -f $file) )
+		{
+		die "File $file doesn't appear to be in the origin dir $originaldir\n";
+		}
+	$plan{$file} = $newfn;
+	if($verbose)
+		{
+		print "PLAN: move [$file] => [$newfn]\n";
+		}
+	}
+return %plan;
+}
+
+sub sanitize_file($;)
+{ # Turn a file into a full path/file
+my ($fn) = @_;
+if($fn !~ /^\//)
+	{
+	$fn = getcwd() . '/' . $fn;
+	}
+if($verbose) {print "Mapped [" . $_[0] . "] -> [$fn]\n";}
+return $fn;
+}
+
+sub handle_args
+{
+my (@files, $pretend);
+$pretend=0;
+local $_;
+if(@ARGV < 1)
+	{die "usage: banish [-v][-p] files..\n";}
+foreach my $arg (@ARGV)
+	{
+	if($arg eq '-v')
+		{$verbose=1;next;}
+	if($arg eq '-p')
+		{$pretend=1;next;}
+	if(($arg !~ /^-/) && ($arg !~ /^\.\.?$/) )
+		{push(@files, $arg);next;}
+	else
+		{die "Didn't recognize arg [$arg]\n";}
+	}
+return (\@files, $pretend);
+}
+

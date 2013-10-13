@@ -1,0 +1,19 @@
+#!/usr/bin/perl
+
+while(<>)
+{
+chomp;
+push(@lines,$_);
+}
+
+print map{"$_\n";} sort
+	{
+	my ($a1,$a2,$a3,$a4) = split(/\./,$a);
+	my ($b1,$b2,$b3,$b4) = split(/\./,$b);
+	return(
+		 ($a1 <=> $b1)
+||		 ($a2 <=> $b2)
+||		 ($a3 <=> $b3)
+||		 ($a4 <=> $b4) );
+
+	} @lines;

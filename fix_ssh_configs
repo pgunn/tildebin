@@ -1,0 +1,92 @@
+#!/usr/bin/perl -w
+
+use strict;
+use File::Copy;
+my $coward = 0; # Do we do anything?
+main();
+
+################
+# Takes no args, operates on subdirs of where it is invoked.
+
+
+sub main
+{
+opendir(HERE, '.') || die "Failed to open current directory:$!\n";
+my @dirs = grep {!/^team/} grep {!/^\./} grep {-d $_} readdir(HERE);
+closedir(HERE);
+if($coward)
+	{
+	die "I would modify " . join(',', @dirs) . "\n";
+	}
+
+my @reallyeasy = grep {! -f "$_/.ssh/config"} @dirs;
+my @not_so_easy = grep {-f "$_/.ssh/config"} @dirs;
+map{handle_reallyeasy($_)} @reallyeasy;
+map{handle_not_so_easy($_)} @not_so_easy; # Sad thing is, after one invocation, all users are suddenly difficult.
+print "Report:\n"
+.	"\t" . scalar(@reallyeasy) . " easy users\n"
+.	"\t" . scalar(@not_so_easy) . " difficult users\n";
+print "Difficult users: " . join(',', @not_so_easy) . "\n";
+}
+
+
+sub handle_reallyeasy
+{ # Given a userdir lacking one, make a $USER/.ssh/config with our desired config.
+my ($user) = @_;
+mkdir("$user/.ssh"); # Ok if it fails because it already exists.
+if(! -d "$user/.ssh") {die "Failed to mkdir [$user/.ssh] : $!\n"}; # Not ok if it fails in some other way...
+open(TOWRITE, ">$user/.ssh/config") || die "Failed to open new configfile for [$user]: $!\n";
+print TOWRITE get_payload();
+close(TOWRITE);
+}
+
+sub handle_not_so_easy
+{ # There is already a configfile present! Let's try to be sensible.
+my ($user) = @_;
+# Step one: stash a copy
+copy("$user/.ssh/config", "$user/.ssh/config." . time()) # simple, neat way to handle this
+||	die "Failed to backup configfile of user [$user]\n";
+
+# Now we're going to read it in and chop out any bits made by previous iterations of this program
+my $holder;
+open(CONF, "$user/.ssh/config") || die "Could not read configfile for [$user]\n";
+my $dropped = 0;
+while(my $line = <CONF>)
+	{
+	if($line !~ /AUTOGEN/)
+		{$holder .= $line;}
+	else
+		{
+		$holder .= get_payload();
+		$dropped++;
+		last;
+		}
+	}
+if(! $dropped) {$holder .= "\n" . get_payload();}
+close(CONF);
+open(CONF, ">$user/.ssh/config") || die "Could not write configfile for [$user]\n";
+print CONF $holder;
+close(CONF);
+}
+
+sub get_payload
+{
+# No good way to restrict it only to internal hosts. Sigh.
+return <<EOPAYLOAD;
+# AUTOGEN
+# Please do not make modifications below this section or they may be automatically discarded.
+# 
+# This loosens the restrictions on people who might make their own images with different hostkeys and want
+# to ssh to them by machinename. It also makes the cross-machine scripting easier for new users as they
+# won't need to ssh to a new machine first. It does add a danger of users on a node possibly not reaching
+# a real boss or ops if someone's messed with the routing tables, but in order to do that they'd need root
+# and if they have that they could replace your ssh - no real added vuln, just some convenience shifting.
+
+Host *
+StrictHostKeyChecking no
+CheckHostIP no
+UserKnownHostsFile /dev/null
+
+EOPAYLOAD
+}
+

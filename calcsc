@@ -1,0 +1,220 @@
+#!/usr/bin/perl -w
+
+use strict;
+my $debug = 0;
+
+###############
+# DOFUS stat calculator
+
+
+my %longname = (
+		cra => "Cra",
+		eca => "Ecaflip",
+		eni => "Eniripsa",
+		enu => "Enutrof",
+		feca => "Feca",
+		iop => "Iop",
+		osa => "Osa",
+		panda => "Pandawa",
+		sac => "Sacrier",
+		sadi => "Sadida",
+		sram => "Sram",
+		xel => "Xelor"
+		);
+my %softcaps = (
+		str =>
+			{
+			cra => [50,150,250,350],
+			eca => [100,200,300,400],
+			eni => [0,50,150,200],
+			enu => [50,150,250,350],
+			feca => [0,50,150,250],
+			iop => [100,200,300,400],
+			osa => [0,50,150,250],
+			panda => [50,200],
+			sac => [0,0,100,150],
+			sadi => [50,250,300,400],
+			sram => [100,200,300,400],
+			xel => [0,50,150,250]
+			},
+		agi =>
+			{
+			cra => [50,100,150,200],
+			eca => [50,100,150,200],
+			eni => [20,40,60,80],
+			enu => [20,40,60,80],
+			feca => [20,40,60,80],
+			iop => [20,40,60,80],
+			osa => [20,40,60,80],
+			panda => [50,200],
+			sac => [0,0,100,150],
+			sadi => [20,40,60,80],
+			sram => [100,200,300,400],
+			xel => [20,40,60,80]
+			},
+		cha =>
+			{
+			cra => [20,40,60,80],
+			eca => [20,40,60,80],
+			eni => [20,40,60,80],
+			enu => [100,150,230,330],
+			feca => [20,40,60,80],
+			iop => [20,40,60,80],
+			osa => [100,200,300,400],
+			panda => [50,200],
+			sac => [0,0,100,150],
+			sadi => [100,200,300,400],
+			sram => [20,40,60,80],
+			xel => [20,40,60,80]
+			},
+		int =>
+			{
+			cra => [50,150,250,350],
+			eca => [20,40,60,80],
+			eni => [100,200,300,400],
+			enu => [20,60,100,150],
+			feca => [100,200,300,400],
+			iop => [20,40,60,80],
+			osa => [100,200,300,400],
+			panda => [50,200],
+			sac => [0,0,100,150],
+			sadi => [100,200,300,400],
+			sram => [0,50,150,250],
+			xel => [100,200,300,400]
+			}
+		);
+main();
+
+
+#################
+
+sub main
+{
+my ($class, $stat, $level, $scrollfirst) = handle_args(@ARGV);
+#my ($scrollfirst) = handle_args(@ARGV);
+# foreach my $class (qw/cra eca eni enu feca iop osa panda sac sadi sram xel/)
+# 	{
+# 	my $longclass = $longname{$class};
+# 	print "|-\n! [[$longclass]]\n| ";
+# 	print join('||', map
+# 		{
+# 		my $stat = $_;
+# 		join('/', map
+# 			{
+# 			my $level = $_;
+# 			my ($val, $points) = calc_classstat($class, $stat, $level, $scrollfirst);
+# 			$val; # remainder $points\n";
+# 			} (50,100,150,200));
+# 		}
+# 		(qw/str agi cha int/) );
+# 	print "\n";
+# 	}
+# print "\n";
+my ($val, $points) = calc_classstat($class, $stat, $level, $scrollfirst);
+print "$class($level): $stat = $val (remaining $points)\n";
+}
+
+
+sub calc_classstat
+{
+my ($class, $stat, $level, $scrollfirst) = @_;
+my $points = 5 * ($level - 1);
+my $val= 0;
+if($scrollfirst) {$val= 101;}
+dprint(2, "Lookup: $stat $class\n");
+my @list = @{$softcaps{$stat}{$class}};
+for (my $lvl = 0; $lvl < 5; $lvl++) # lvl is the cap level that we're at
+	{ # Spend all the points we have at this level
+	my $cost = $lvl+1;
+	dprint(2, "Cost: $cost: I have $points points to spend\n");
+	if($val > min_next_level($lvl, @list) ) # Skip levels with no spending
+		{
+		dprint(2, "\tWith $val points in $stat, I am above the softcap of $list[$lvl], goto next level\n");
+		next;
+		}
+
+	my $spendcap = ($lvl+1) * (min_next_level($lvl, @list) - $val);
+	dprint(2, "\tCalculated spending cap of $spendcap\n");
+	if($points < $spendcap)
+		{
+		my $gain = int($points / $cost);
+		my $pspend = $gain * $cost;
+		$points -= $gain*$cost;
+		$val += $gain;
+		dprint(2, "\tSpend $pspend points for gain of $gain $stat, stat => $val, remaining points: $points\n");
+		last;
+		}
+	else
+		{
+		my $gain = min_next_level($lvl,@list) - $val;
+		my $pspend = $gain * $cost;
+		$points -= $pspend;
+		$val = min_next_level($lvl, @list);
+		dprint(2, "\tSpend $pspend points for gain of $gain $stat, stat => $val, remaining points $points\n");
+		}
+	}
+dprint(1,"Final stat: $val, remaining points: $points\n");
+return ($val, $points);
+}
+
+sub min_next_level
+{
+my ($lvl, @list) = @_;
+dprint(3, "\t\tI am at level $lvl\n");
+dprint(3, "\t\tList is " . join(',', @list) . "\n");
+if($lvl > scalar(@list))
+	{dprint(3, "\t\tFell off the edge of the world, $lvl > " . scalar(@list) . "\n"); return 10000;}
+else
+	{
+	if(defined $list[$lvl])
+		{
+		return $list[$lvl] + 1;
+		}
+	else
+		{
+		return 10000;
+		}
+	}
+}
+
+sub at_level
+{
+my ($stat, @list) = @_;
+dprint(3, "$stat: I am parsing " . join(",", @list) . "\n");
+my $idx;
+for($idx=0;$idx<5;$idx++)
+	{
+	if($stat < $list[$idx])
+		{return $idx;}
+	}
+return $idx;
+}
+
+sub handle_args
+{
+# my @args = @_;
+# if(@args != 1)
+# 	{
+# 	die "Usage: calcsc scrollfirst\nExample: calcsc cra str 140 1\n";
+# 	}
+# else {return (@args);}
+# 
+my @args = @_;
+if(@args != 4)
+	{
+	die "Usage: calcsc class stat level scrollfirst\nExample: calcsc cra str 140 1\n";
+	}
+else {return (@args);}
+}
+
+
+sub dprint
+{
+my ($debuglvl, $toprint) = @_;
+
+if($debug >= $debuglvl)
+	{
+	print $toprint;
+	}
+}
+

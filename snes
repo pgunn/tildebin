@@ -1,0 +1,4 @@
+#!/bin/sh
+
+#${HOME}/snes9x-1.43/snes9x -stereo $*
+snes9x -y -sy -mono $*

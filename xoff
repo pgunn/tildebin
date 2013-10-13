@@ -1,0 +1,6 @@
+#!/bin/sh
+
+. ~pgunn/bin/xglue
+xset dpms force off
+
+while [ -d / ]; do sleep 360; xset dpms force off; done

@@ -1,0 +1,61 @@
+#!/usr/bin/perl -w
+
+# Spidereyeballs is a great program, but it does not well handle files with identical names in different source directories - it treats them as the same file. This script munges the filenames to be unique by incorporating elements of their directory.
+
+$dir = qw{/home/pgunn/mediafiles};
+use File::Copy;
+my $doit=1;
+
+main();
+
+#########################
+
+sub main
+{
+my $targdir = handle_args($dir, @ARGV);
+chdir($targdir) || die "Cannot enter directory-to-munge [$targdir]:$!\n";
+foreach my $subdir (all_subdirs())
+	{
+#	print "D: $subdir/\n";
+	foreach my $file (all_files($subdir))
+		{
+		next if($file =~ /__/); # In case it gets run multiple times
+		my $targfile = $subdir . '__' . "$file";
+		print "$subdir/$file -> $subdir/$targfile\n";
+		if($doit)
+			{
+			move("$subdir/$file", "$subdir/$targfile");
+			}
+		}
+	}
+}
+
+sub handle_args
+{
+my ($defdir, @args) = @_;
+my $ret = $defdir;
+
+if(@args == 1 && [ -d $args[0] ])
+	{$ret = $args[0];}
+elsif(@args != 0)
+	{die "Usage: $0 [DIR]\n";}
+return $ret;
+}
+
+sub all_subdirs
+{
+opendir(HERE, '.') || die "Could not read current directory:$!\n";
+my @ret = grep { $_ !~ /^\./ } grep {-d $_} readdir(HERE);
+closedir(HERE);
+return @ret;
+}
+
+sub all_files
+{
+my ($dir) = @_;
+opendir(DIR, $dir) || die "Could not read directory [$dir]:$!\n";
+my @ret = grep { $_ !~ /^\./ } grep { [ -f $_ ] } readdir(DIR);
+closedir(DIR);
+return @ret;
+}
+

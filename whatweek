@@ -1,0 +1,9 @@
+#!/usr/bin/perl -w
+
+use strict;
+
+use DateTime;
+
+my $dt = DateTime->from_epoch(epoch =>time());
+my $weekid = $dt->strftime("%U");
+print $weekid . "\n";

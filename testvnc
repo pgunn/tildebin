@@ -1,0 +1,5 @@
+#!/bin/sh
+
+export GWPORT=80
+export VNC_VIA_CMD="/usr/bin/ssh -p $GWPORT -f -L "\$L":"\$H":"\$R" "\$G" sleep 20"
+exec vncviewer -AutoSelect=0 -LowcolourLevel 1 -UseLocalCursor $* -via crisis

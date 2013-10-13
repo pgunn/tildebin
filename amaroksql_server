@@ -1,0 +1,11 @@
+#!/bin/sh
+
+echo "******************************************"
+echo "* I will start the database on port 9999 *"
+echo "* Start the client.                      *"
+echo "******************************************"
+
+cd ~/.kde/share/apps/amarok
+/usr/libexec/mysqld --defaults-file=`pwd`/my.cnf --default-storage-engine-MyISAM --datadir=`pwd`/mysqle -P 9999 --socket=`pwd`/sock --skip-grant-tables
+
+

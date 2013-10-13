@@ -1,0 +1,4 @@
+#!/usr/bin/perl -an
+
+@bits = split(/\s+/);
+print $bits[8] . "\n";

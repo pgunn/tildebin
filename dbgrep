@@ -1,0 +1,138 @@
+#!/usr/bin/perl -w
+
+use strict;
+use DBI;
+
+my $sep = ","; # seperates fields
+my $nsep = '_'; # Replacement in display
+main(@ARGV);
+############################
+# We basically pretend a database is a directory tree,
+# and match all components to the user's search string.
+#
+# table:tuple
+#
+# tuples are displayed as seperated by $sep, and consequently searches
+# 	with $sep in it will "look funny"
+# I would like to have fieldnames too, but there's no nice way to
+#	get that programmatically from empty tables, and including it
+#	would muddy the model..
+############################
+
+sub main
+{
+my %args = handle_args(@_);
+
+($args{dbc}, $args{user}, $args{pass}) = cleanup_dbstring($args{dbstring});
+my $dbh = DBI->connect($args{dbc}, $args{user}, $args{pass});
+if(! $dbh->ping()) {die "Not connected: $!\n";}
+my @tables = db_get_tables($dbh); # depreciated - hopefully still works
+
+foreach my $table (@tables)
+	{
+#	print "I see $table\n\n\n";
+ 	if($table =~ /$args{search}/)
+ 		{print "$table/\n";}
+ 	my $dbq = $dbh->prepare("SELECT * FROM $table");
+ 	$dbq->execute();
+ 	while(my %tuple = get_dbresults($dbq))
+ 		{
+ 		if(grep { $tuple{$_} && $tuple{$_} =~ /$args{search}/ } keys %tuple)
+ 			{
+ 			print "$table:"
+.				join($sep,
+					map
+						{
+						if($tuple{$_})
+							{
+							$tuple{$_} =~ s/$sep/$nsep/g;
+							$tuple{$_} =~ s/[\r\f\n]/\\n/g;
+							$tuple{$_};
+							}
+						else {''}
+						}
+						keys %tuple) . "\n";
+ 			}
+ 		}
+	}
+$dbh->disconnect();
+}
+
+
+sub handle_args
+{
+my @in = @_;
+my %ret;
+if(@in < 2)
+	{
+	die <<EOUSAGE;
+Usage: dbgrep STRING DBSTRING
+
+DBSTRING is one of the following:
+	[user:pass]\@dbi:DBISTRING
+	dbi:DBISTRING (assumes no username/password)
+	[user:pass]\@dbname (assumes PostgreSQL)
+	dbname (assumes PostgreSQL and no username/password required)
+
+brackets and colons in usernames/database names/etc are not supported.
+EOUSAGE
+	}
+$ret{search} = $in[0];
+$ret{dbstring} = $in[1];
+return %ret;
+}
+
+sub cleanup_dbstring
+{ # Although the user can pass in a full DBI string with
+  # username/password glued on, let's try not to make them do so...
+my ($instring) = @_;
+my $cstring;
+my $cuser;
+my $cpass;
+
+if($instring =~ s/^\[([^]]+)\]\@//) # Remove user/pass string if present
+	{ # and parse it
+	my $authpart = $1;
+	($cuser,$cpass) = split(/:/, $authpart);
+	}
+if($instring !~ /^dbi:/) # Without this, we assume it's just a Pg dbname
+	{
+	$cstring = "dbi:Pg:dbname=$instring";
+	}
+else
+	{$cstring = $instring;} # Nice and simple
+return ($cstring, $cuser, $cpass);
+}
+
+sub db_get_tables
+{ # Right now, we know how to filter out postgres system stuff. Extend this to other dbs when possible
+my ($dbh) = @_;
+my @ret;
+
+my $sth = $dbh->table_info(undef, undef, undef, "'TABLE'");
+while(my %res = get_dbresults($sth))
+	{
+	next if($res{TABLE_TYPE} ne 'TABLE');
+	next if($res{pg_schema} eq 'information_schema');
+	next if($res{TABLE_SCHEM} eq 'information_schema');
+	push(@ret, $res{TABLE_NAME});
+#	print join('', map {"$_ -> $res{$_}\n"} keys %res) . "\n";
+	}
+return @ret;
+}
+
+#################################
+# Cut/paste from elsewhere
+
+sub get_dbresults($)
+{ # Returns a proper hash instead of a reference to one, for FIRST record returned
+my ($dbq) = @_;
+my $reshdl = $dbq->fetchrow_hashref();
+my %returner;
+if(defined($reshdl))
+        {
+        %returner = %$reshdl;
+        }
+return %returner;
+}
+

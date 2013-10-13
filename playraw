@@ -1,0 +1,2 @@
+#!/bin/sh
+play -c 2 -ws -t raw -r 44100 $*

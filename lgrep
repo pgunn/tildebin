@@ -1,0 +1,59 @@
+#!/usr/bin/perl -w
+
+use strict;
+# lgrep: likeness-grep or l33t-grep
+# Attempt to match things that may have been obfuscated by l33tspeak,
+#	possibly by marketers trying to avoid filters
+# Note that this will tend to move towards letters, not away from it, so
+#	placing numbers or other nonnumerics in the search string is not
+#	recommended. It also lowercases everything for broader matching.
+
+main(@ARGV);
+
+############################
+
+sub main
+{
+my @args = @_;
+if(@args < 2)
+	{usage();}
+my $pattern = lc shift @args;
+foreach my $file (@args)
+	{
+	open(THISF, $file) || die "ERROR: Could not open [$file]:$!\n";
+	while(my $thisl = readline(THISF) )
+		{
+		my $match = 0;
+		$thisl =~ tr/\r\n\f//d;
+		my @parsings = interpret_line($thisl);
+		foreach my $parsing (@parsings)
+			{ # tempting to use grep(), but we want short-circuit
+			if($parsing =~ /$pattern/)
+				{$match++;last;}
+			}
+		if($match) {print "$file: $thisl\n"}
+		}
+	close(THISF);
+	}
+}
+
+sub interpret_line
+{ # Interpret a line, return all plausible interpretations of it in a list
+my ($inl) = @_;
+
+$inl = lc($inl);
+my @returner;
+
+$inl =~ tr/150/iso/;
+$inl =~ tr/3/e/;
+push(@returner, $inl);
+
+return @returner;
+}
+
+
+sub usage
+{
+die "Usage: lgrep PATTERN FILE [FILES..]\n";
+}
+

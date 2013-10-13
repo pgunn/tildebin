@@ -1,0 +1,64 @@
+#!/usr/bin/perl -w
+
+use strict;
+
+my $mbookdir = "$ENV{HOME}/mbook";
+my $templ = "$mbookdir/template.pl";
+# Media bookmark a file. Such a bookmark is a script that plays the media,
+# but will also attempt to correct itself if the file moves to a nearby name,
+# update its script part to the latest template if there's a newer one
+# available.
+
+main();
+
+##############################
+
+sub main
+{
+my %conf = handle_args(@ARGV);
+my $targfn = "$mbookdir/$conf{bm}";
+
+our $verstring;
+if(-f $targfn)
+	{die "Bookmark [$targfn] already exists\n";}
+open(IN, $templ) || die "Failed to open template $templ: $!\n";
+open(OUT, '>' . $targfn) || die "Failed to open mbookmark $targfn: $!\n";
+while(<IN>)
+	{
+	print OUT;
+	if(/^our \$tmplver = (.*);/)
+		{$verstring = $1;}
+	next unless !/^#VARS/;
+	print OUT qq{our \$targ = "$targ";\n};
+	print OUT qq{our \$mbookdir = "$mbookdir";\n};
+	if(defined $verstring)
+		{print OUT qq{our \$scriptver = $verstring;\n}; }
+	while(<IN>)
+		{last if /^#!VARS/;} # If there's more content, replace it
+	print OUT qq{#ENDVARS\n};
+	}
+close(IN);
+close(OUT);
+chmod(0755, $targfn);
+}
+
+sub handle_args
+{
+my @args = @_;
+my %ret;
+if(@args != 2)
+	{usage();}
+($ret{bm}, $ret{mfile}) = @args;
+if(! -f $ret{mfile})
+	{die "Mediafile [$ret{mfile}] does not exist\n";}
+if(! -d $mbookdir)
+	{die "Bookmarkdir [$mbookdir] does not exist\n";}
+return %ret;
+}
+
+sub usage
+{
+print "Usage: mbook bookmarkname file\n";
+exit 0;
+}
+

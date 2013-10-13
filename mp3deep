@@ -1,0 +1,77 @@
+#!/usr/bin/perl -w
+
+# Recursively, randomly play mp3s under current dir with mpg123
+
+@default_options = ('-z');
+$mutex_options{'-Z'} = '-z'; # What kind of random
+$mutex_options{'-0'} = '-1'; # Channel selector
+$mutex_options{'-2'} = '-4'; # Downsampling options
+@options_disallow = ('-w','-@','-u','-p','-h','-d','-o','-a','-g','-r','-f','-n','-k','-b'); # These all take arguments after them, and make it harder to
+		# do magic spiffy mutex checking. 
+
+cleanup_predef();
+
+main(@ARGV);
+
+
+sub main
+{ # eventually accept arguments for mpg123, for now, ignore args
+my @program_args = @_;
+my @args = figure_args(@program_args);
+print "Figured args [" . join(', ',@args) . "]\n";
+my @mp3_list = recurse_get_mp3list(".");
+do_mpg123(\@args, @mp3_list);
+}
+
+sub recurse_get_mp3list
+{
+my $cwd = shift;
+opendir(THISDIR, $cwd);
+my @mp3files;
+my @direntries = map {$cwd . '/' . $_;} grep !/^\./, readdir(THISDIR);
+closedir(THISDIR);
+foreach my $entry (@direntries)
+	{
+	if( -d $entry)
+		{
+		push(@mp3files, recurse_get_mp3list($entry));
+		next;
+		}
+	if( ( -f $entry) && ($entry =~ /\.mp[32]$/i))
+		{
+		push(@mp3files, $entry);
+		next;
+		}
+	}
+return @mp3files;
+}
+
+sub do_mpg123
+{
+my $argsref = shift;
+my @mp3s = @_;
+exec 'mpg123', @$argsref, @mp3s;
+}
+
+sub figure_args
+{ # Coalesce @argv and @default_options into a coherent
+  # set of args, using %mutex_args
+my @argv = @_;
+my %h_returner;
+
+foreach $arg (@argv, @default_options)
+	{
+	if($disallow{$arg})
+		{die "Disallowed argument [$arg] found\n";}
+	if(! (($mutex_options{$arg}) && ($h_returner{$mutex_options{$arg}})))
+		{$h_returner{$arg} = 1;}
+	}
+return (keys %h_returner);
+}
+
+sub cleanup_predef
+{ # It'd suck to need to specify mutually exclusive flags both ways
+map{$mutex_options{$mutex_options{$_}} = $_;} keys %mutex_options;
+map{$disallow{$_}=1;} @options_disallow;
+}
+

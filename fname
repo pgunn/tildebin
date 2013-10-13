@@ -1,0 +1,33 @@
+#!/usr/bin/perl -w
+#
+# Finger someone on a machine with a known IP
+# TODO: Stuff this into a DBM
+
+my %ipmap = (
+		bob => qw/127.0.0.1/,
+		jane => qw/192.168.2.104/ # Fill in the rest here
+		);
+
+main();
+
+#################
+
+sub main
+{
+my $targ = handle_args(@ARGV);
+if(! defined($ipmap{$targ}))
+	{die "Unknown identifier\n";}
+else
+	{
+	print `finger \@$ipmap{$targ}`;
+	}
+}
+
+sub handle_args
+{
+my @args = @_;
+if(@args != 1)
+	{die "Usage: fname id\n";}
+return $args[0];
+}
+

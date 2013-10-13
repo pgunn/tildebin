@@ -1,0 +1,55 @@
+#!/usr/bin/perl -w
+
+use strict;
+
+main();
+
+##########################
+# find_loners [PLACE]
+#	Finds subdirs of current dir or PLACE (if provided) that have a file
+#	sitting alone in a directory. Prints those files.
+##########################
+
+sub main
+{
+my $tosearch = handle_args(@ARGV);
+parsedir($tosearch);
+}
+
+sub parsedir
+{
+my ($dir) = @_;
+opendir(DIR, $dir) || die "Could not open directory [$dir]:$!\n";
+my @files = grep {!/^\./} readdir(DIR);
+closedir(DIR);
+foreach my $file (@files)
+	{
+	if(-l "$dir/$file")
+		{
+		}
+	elsif(-d "$dir/$file")
+		{
+		parsedir("$dir/$file");
+		}
+	}
+if( (@files == 1) && (-f "$dir/" . $files[0]))
+	{
+	print "$dir/$files[0]\n";
+	}
+}
+
+sub handle_args
+{
+my @args = @_;
+if(@args == 1)
+	{
+	if(-d $args[0])
+		{return $args[0];}
+	}
+elsif(@args == 0)
+	{
+	return '.';
+	}
+die "Usage: finddups [DIRNAME]\n";
+}
+

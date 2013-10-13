@@ -1,0 +1,11 @@
+#!/usr/bin/perl
+
+@modules = qw{ac.o battery.o fan.o processor.o thermal.o};
+$kv = `uname -r`;
+chomp($kv);
+$acp = q{/lib/modules/} . $kv . q{/kernel/drivers/acpi};
+foreach $mod (@modules)
+	{
+	print "insmod $mod\n";
+	`insmod $acp/$mod`;
+	}

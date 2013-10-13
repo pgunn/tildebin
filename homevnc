@@ -1,0 +1,4 @@
+#!/bin/sh
+
+exec vnclow localhost:1 -via home.dachte.org
+

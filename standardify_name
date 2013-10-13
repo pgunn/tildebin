@@ -1,0 +1,53 @@
+#!/usr/bin/perl -w
+
+use strict;
+use File::Copy;
+main();
+
+######################
+# Primarily intended to translate music filenames closer to my
+# preferred format, but maybe useful for other things too.
+# HANG ON A SEC darn it. This will do bad things to files with the
+#	naming standard of 02-ARTISTNAME-trackname.extension
+#	I don't see a way to fix that - requires human judgement.
+#	Do I have any files named that way?
+######################
+
+sub main
+{
+foreach my $name (@ARGV)
+	{
+	if(! -f $name)
+		{die "Invalid file [$name]\n";}
+
+	my $newname = namefix($name);
+	if($name ne $newname)
+		{
+		print "[$name] => $newname\n";
+		move($name, $newname);
+		}
+	}
+}
+
+sub namefix
+{
+my ($in) = @_;
+$in =~ tr/ /_/;
+$in =~ s/_-_/-/g; # no spaces around dashes!
+$in = lc($in);
+$in =~ tr/'/_/;
+$in =~ tr/!,&//d;
+# Now we want to delete all but the first instance of '-' and all but the last
+# of '.'
+my @inparts = split(/-/, $in);
+if(@inparts > 1)
+	{$in = $inparts[0] . '-' . join('_', @inparts[1..$#inparts]);}
+
+@inparts = split(/\./, $in);
+if(@inparts > 2)
+	{$in = join('_', @inparts[0 .. $#inparts-1]) . '.' . $inparts[$#inparts];}
+
+$in =~ s/__/_/g; # And shrink
+return $in;
+}
+

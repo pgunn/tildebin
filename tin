@@ -1,0 +1,22 @@
+#!/usr/bin/perl -w
+
+main();
+
+sub main
+{
+map
+        {
+        if(! -e $_)
+                {die "No such file $_\n";}
+        }
+        @ARGV;
+map
+        {
+        $dname = $_;
+        s/\/$//; # Trim trailing slashes
+        s/$/.tar.bz2/; # Add archive name
+        system("tar","cjf",$_,$dname);
+        }
+	@ARGV;
+}
+

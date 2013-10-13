@@ -1,0 +1,872 @@
+#!/usr/bin/perl -w
+
+my $diskused = 0;
+my $pause = 10;
+my @filelist;
+
+my $srcdir = qq{/home/media/music};
+my $targdir = qq{/mnt/flash/Music};
+use utf8;
+use Encode qw/decode_utf8/;
+use File::Copy;
+use File::Path;
+main();
+
+###############################
+
+sub main
+{
+my %filelist = loaddata();
+my $size = 0;
+foreach my $sname (keys %filelist)
+	{$size += (-s $filelist{$sname})/1024;}
+
+print "Total size is $size kilobytes. Copy begins in $pause seconds\n";
+sleep($pause);
+
+foreach my $sname (keys %filelist)
+	{
+	my $cleaned = translate_down($sname);
+#	print "$cleaned => $filelist{$sname}\n";
+	if($cleaned eq $sname) # Just copy
+		{
+		schlepp($sname, $filelist{$sname}, "$targdir/$sname");
+		}
+	else
+		{
+		print "Corrected: $sname => $cleaned\n";
+		schlepp($cleaned, $filelist{$sname}, "$targdir/$cleaned");
+			# In theory we could then retag it to remove
+			# unicode things Android can't handle.
+			# TODO: Later. If ever.
+		}
+	}
+
+}
+
+sub schlepp
+{
+my($sname, $in, $out) = @_;
+if( -f $out)
+	{print "Skipped [$out]: Exists\n";return;}
+
+print "CP\t [$in]\n\t\t=> [$out]\n";
+ensure_subdir_exists_for($sname);
+copy($in, $out);
+}
+
+sub ensure_subdir_exists_for
+{ # This used to do more.
+my ($infile) = @_;
+#print "ESEF: $infile\n";
+$infile =~ s/^(.*)\/.*/$1/g; # Remove any trailing /
+#print "Path: $infile\n";
+if(-d "$targdir/$infile")
+	{return;} # Path exists
+
+mkpath("$targdir/$infile") || die "Cannot make path [$infile]:$!\n";
+}
+
+sub fn_impure
+{
+my ($in) = @_;
+if($in =~ /([^-A-Za-z0-9._\/])/)
+	{return 1;}
+
+return 0;
+}
+
+
+sub translate_down
+{ # Translate a filename's unicode into a reasonable plaintext variant
+my ($in) = @_;
+#print "\tD:translate_down given $in\n";
+$in =~ tr       {åáäëïöüÿÄËÏÖÜŸßóсплиноsтаемsязiвыюдцрхбгукйэЌе́éñ}
+                {aaaeiouyAEIOUYBosplinostaemsyziviydcrcbgukizkeen}; # single character "lookalikes"
+$in =~ tr/ь')(//d; # No english equivalents or characters that shouldn't be in there anyway
+$in =~ s/ひ/hi/g;
+$in =~ s/い/i/g;
+$in =~ s/ら/ra/g;
+$in =~ s/ぎ/gi/g;
+$in =~ s/æ/ae/g;
+if(fn_impure($in))
+	{die "FATAL: Unknown character in $in\n";}
+
+return $in;
+}
+
+######
+# This has the file lists
+
+sub loaddata
+{
+my %filelist;
+
+my @misc_files = qw{
+al_bowlley-bei_mir_bist_du_schön.mp3
+all_caps-don_t_unplug_me.ogg
+america-horse_with_no_name.ogg
+amir-romantic_flamenco.ogg
+andrews_sisters-bei_mir_bist_du_schön.ogg
+aneiki-superhero.mp3
+animals-house_of_the_rising_sun.ogg
+asylum_choir-welcome_to_hollywood.ogg
+ataris-saddest_song_acoustic.mp3
+babyland-dynomite.mp3
+back_to_the_future_theme.mp3
+basshunter-boten_anna.mp3
+beastie_boys-intergalactic.mp3
+bee_gees-staying_alive.ogg
+beethoven-symphony_7_allegretto_mvt_2.ogg
+benny_hill-yakety_sax.ogg
+bill_withers-ain_t_no_sunshine.ogg
+blackalicious-chemical_calisthenics.mp3
+blood_sweat_and_tears-spinning_wheel.ogg
+boole-everyday_is_halloween_cover.mp3
+brian_dewan-letter.ogg
+bright_eyes-four_winds.ogg
+budapester_klezmer_band-havah_nagilah.ogg
+buggles-video_killed_the_radio_star.ogg
+buster_pointdexter-hit_the_road_jack.mp3
+chad_mitchell_trio-moscow_nights.ogg
+chameleon_circuit-exterminate_regenerate.ogg
+chopin-minute_waltz.ogg
+christina_milian-am_to_pm.ogg
+coldplay-clocks.mp3
+colin_hay-waiting_for_my_real_life_to_begin.ogg
+crash_test_dummies-mmm_mmm_mmm_mmm.mp3
+crew_cuts-sh_boom_sh_boom.ogg
+cry_of_the_celtic.mp3
+cynic_project-red_horizons.mp3
+daniel_powter-bad_day.mp3
+david_grusin-goonies_theme.mp3
+deltron_3030-memory_loss.mp3
+desi_arnez-cuban_pete.mp3
+destinys_child-bootylicious.ogg
+devo-whip_it.mp3
+dirty_vegas-days_go_by.mp3
+don_bryon-powerhouse_cover.ogg
+don_kosaken_choir-moscow_nights.ogg
+eagle_eye_cherry-save_tonight.ogg
+east_harima_young_men_s_orchestra-haisai_boryoku_ondo.ogg
+ed_bruce-last_train_to_clarksville.mp3
+edinburgh_city_police_pipe_band-flower_of_scotland.ogg
+ednaswap-torn.mp3
+ednaswap-torn__v2.ogg
+ednaswap-torn__acoustic.ogg
+eduard_khil-trolololo.ogg
+edward_kowalczyk-the_distance.mp3
+eiffel_65-blue.ogg
+electronic_exodus-window.mp3
+ella_fitzgerald-bei_mir_bist_du_schön.mp3
+erasure-love_to_hate_you.mp3
+erasure-take_a_chance_on_me.mp3
+escape_club-wild_wild_west.mp3
+eve-gangsta_lovin.mp3
+exit_music_for_a_film_instrumental_cover.ogg
+fat_les-vin_da_loo.ogg
+fefe_dobson-take_me_away.ogg
+flobots-handlebars.ogg
+fratellis-flathead.ogg
+gershwin-american_in_paris.ogg
+gil_scott_heron-the_revolution_will_not_be_televised.mp3
+gipsy_music_trio-hava_nagilah.mp3
+glenn_miller-song_of_the_volga_boatmen__jazz.ogg
+gnarls_barkley-crazy.ogg
+goldfinger-lonely_place.mp3
+greenday-basket_case.mp3
+herschel_bernardi-tum_balalaika.mp3
+honeycrack-anyway__demo.ogg
+hymn_partii_bolshevikov_1938.mp3
+ian_dury-hit_me_with_your_rhythm_stick.ogg
+imperative_reaction-syntax.mp3
+inspector_gadget.mp3
+jack_of_all_trades__theme.ogg
+jakovas_magidas-tum_balalaika.mp3
+james_last-biscaya.mp3
+james_last-havah_nagilah.mp3
+jellyfish-ignorance_is_bliss.mp3
+jerry_reed-bad_bad_leroy_brown.mp3
+jerusalem.mp3
+jesse_cook-milongutia.mp3
+jim_croce-bad_bad_leroy_brown.mp3
+joey_cape_and_tony_sly-justified_black_eye_acoustic.mp3
+john_williams-raiders_of_the_lost_ark.ogg
+johnny_cash-ring_of_fire.mp3
+johnny_horton-the_battle_of_new_orleans.mp3
+kenny_chesney-she_thinks_my_tractor_is_sexy.mp3
+killers-four_winds__cover.ogg
+killers-human.ogg
+late_night_with_conan_o_brien.ogg
+lawrence_welk-bubbles_in_the_wine.ogg
+leo_on_the_roof-night_of_roses.mp3
+luke_and_tessa-let_s_go_outside.ogg
+liquido-ordinary_life.ogg
+makana-we_are_the_many.ogg
+marc_wirtz-brainiac_vs_maniac.mp3
+mason_williams-classical_gas.mp3
+maxi_priest-wild_world.mp3
+maxwell_street_klezmer_band-tum_balalaika.mp3
+men_at_work-down_under.mp3
+michelle_branch-all_you_wanted.mp3
+ministry-every_day_is_halloween.mp3
+murray_head-one_night_in_bangkok.mp3
+new_order-new_faith.ogg
+nik_kershaw-the_riddle.mp3
+nina_simone-house_of_the_rising_sun.mp3
+pachelbel-canon_in_d.mp3
+peewees_playhouse2.ogg
+peter_paul_and_mary-puff.mp3
+phil_ochs-outside_a_small_circle_of_friends.mp3
+pinky_and_the_brain-pinky_and_the_brain_theme.mp3
+randall_and_hopkirk_theme.ogg
+rebbe_soul-tum_balalaika.mp3
+red_nex-cottoneye_joe.mp3
+ren_and_stimpy-i_wanna_be_a_dj.mp3
+ricky_king-tum_balalaika.mp3
+robin_scott-pop_muzik.mp3
+russian_virtuosi-ochi_chernye.mp3
+salif_keita-mandela.mp3
+schwarz_meer_kosaken_chor-moscow_nights.mp3
+scissor_sisters-i_can_t_decide.ogg
+semi-closing_time.mp3
+servotron-3_laws_abolished.mp3
+silver_bullet-against_the_wind.mp3
+spike_jones_junior-a_song_with_a_peel.ogg
+steve_earle-fort_worth_blues.ogg
+steve_goodman-lincoln_park_pirates.mp3
+stroke_9-kick_some_ass.mp3
+telefrancais.mp3
+the_b52s-love_shack.mp3
+the_cure-friday_i_m_in_love.mp3
+the_vandals-oi_to_the_world.mp3
+theodore_bickel-dayenu.mp3
+third_eye_blind-semi_charmed_kind_of_life.mp3
+thomas_dolby-she_blinded_me_with_science.mp3
+tom_tykwer-meeting_schumer.ogg
+tori_amos-tear_in_your_hand.mp3
+toto-africa.mp3
+train-drops_of_jupiter.mp3
+utah_phillips-pie_in_the_sky.mp3
+verve_pipe-the_freshmen.mp3
+vitamin_c-graduation.mp3
+wagon_wheel-old_crow_medicine_show.ogg
+will_smith_vs_daft_punk-daft_prince_of_punk_air.mp3
+will_smith_vs_smb-fresh_prince_of_super_mario_land.mp3
+woody_guthrie-deportee.mp3
+youngblood_brass_band-crescent_city.mp3
+ytcracker-in_my_time.mp3
+zarah_leander-bei_mir_bist_du_schön.mp3
+zombo.ogg};
+
+my @musicdirs_entire = qw{
+anime/boa-serial_experiments_lain
+anime/card_captor_sakura
+anime/niea_under_seven-misc
+drwho
+videogames/ockeroid-kolm__soundtrack
+videogames/tenpei_sato-disgaea__ost
+videogames/tenpei_sato-disgaea_2__ost
+videogames/tenpei_sato-disgaea_3__ost
+videogames/portal_2__soundtrack
+videogames/portal_2__soundtrack_volume_2
+videogames/portal_2__soundtrack_volume_3
+videogames/blake_robinson
+videogames/db_soundworks-binding_of_isaac__soundtrack
+videogames/megaman
+collection/amelie__soundtrack
+collection/amsterdam_klezmer_band-misc
+collection/angelo_badalamenti-city_of_lost_children__soundtrack
+collection/assemblage_23-defiance
+collection/assemblage_23-addendum
+collection/avi_toledano-misc
+collection/avril_lavigne-2002-let_go
+collection/avril_lavigne-2004-under_my_skin
+collection/avril_lavigne-2007-best_damn_thing
+collection/bad_religion-2002-process_of_belief
+collection/bad_religion-2004-empire_strikes_first
+collection/bad_religion-2007-new_maps_of_hell
+collection/bad_religion-2010-dissent_of_man
+collection/balkan_beat_box-balkan_beat_box
+collection/balkan_beat_box-nu_med
+collection/beborn_beton-fake
+collection/bedlam_rock_pavement-misc
+collection/big_fish__soundtrack
+collection/billy_bragg-don_t_try_this_at_home
+collection/billy_talent-billy_talent
+collection/billy_talent-billy_talent_ii
+collection/billy_talent-billy_talent_iii
+collection/blink_182-misc
+collection/brazil
+collection/clothesline_revival-of_my_native_land
+collection/danny_elfman-music_for_a_darkened_theatre
+collection/david_bowie-misc
+collection/david_bowie-rise_and_fall_of_ziggy_stardust
+collection/dean_gray-american_edit
+collection/devotchka-a_mad_and_faithful_telling
+collection/devotchka-how_it_ends
+collection/devotchka-supermelodrama
+collection/devotchka-una_volta
+collection/dixie_chicks-misc
+collection/eydie_gorme-amor
+collection/fefe_dobson-2006-sunday_love
+collection/filmcow-misc
+collection/fiona_apple-extraordinary_machine
+collection/fiona_apple-misc
+collection/fiona_apple-tidal
+collection/fiona_apple-when_the_pawn_hits_the_conflict
+collection/firewater-2008-golden_hour
+collection/gipsy_kings-best_of
+collection/gregory_brothers-auto_tune_the_news
+collection/jayme_stone_and_mansa_sissoko-africa_to_appalachia
+collection/johan_söderqvist-let_the_right_one_in__soundtrack
+collection/klezmer_conservatory_band-old_world_beat
+collection/klezmer_conservatory_band-yiddische_renaissance
+collection/la_roux-la_roux
+collection/matthieu_chedid-1997-le_bapteme
+collection/matthieu_chedid-1999-je_dis_aime
+collection/matthieu_chedid-2003-labo_m
+collection/matthieu_chedid-2003-qui_de_nous_deux
+collection/matthieu_chedid-misc
+collection/mc_hawking-brief_history_of_rhyme
+collection/mr_b_the_gentleman_rhymer-flattery_not_included
+collection/myf-grayscale
+collection/myf-misc
+collection/nathan_hall_and_david_bernabo-nathan_hall_and_david_bernabo
+collection/niyaz-nine_heavens
+collection/niyaz-niyaz
+collection/no_use_for_a_name-2008-feel_good_record_of_the_year
+collection/norah_jones-come_away_with_me
+collection/obsession_new_flamenco_romance
+collection/oscar_lopez-armandos_fire
+collection/oscar_lopez-dancing_on_the_moon
+collection/oscar_lopez-heat
+collection/oscar_lopez-seduction
+collection/oingo_boingo-1985-dead_mans_party
+collection/panorama_jazz_band-2003-another_hot_night_in_february
+collection/panorama_jazz_band-2005-panoramaland
+collection/panorama_jazz_band-2009-come_out_swingin
+collection/pet_shop_boys-fundamental
+collection/professor_elemental-indifference_engine
+collection/protomen-act_ii_father_of_death
+collection/queen-misc
+collection/radiohead-hail_to_the_thief
+collection/radiohead-in_rainbows
+collection/juicemedia-rap_news
+collection/rhps/
+collection/rick_robinson-highland_park_mi_city_of_trees
+collection/scott_joplin-dh_collection
+collection/sean_lennon-2006-friendly_fire
+collection/symphony_of_science
+collection/various-gypsy_passion_new_flamenco
+collection/various-oxfam_arabia
+collection/vnv_nation-2007-judgement
+collection/vnv_nation-2009-of_faith_pride_and_glory
+collection/vnv_nation-2011-automatic
+collection/watershed-2005-fifth_of_july
+collection/watershed-1997-star_vehicle
+};
+
+my @musicfiles_other = qw{
+anime/rumania_montevideo-still_for_your_love.mp3
+anime/escaflowne-misc/yakusoku3.mp3
+anime/neon_genesis_evangelion/yoko_takahashi-cruel_angel_thesis.mp3
+anime/neon_genesis_evangelion/yoko_takahashi-nerv_theme.mp3
+anime/kuma_no_puutarou/puutarouend_extended.ogg
+anime/fushigi_yuugi/itooshi_hito_no_tameni.ogg
+corporate/sgi-octane_swing.mp3
+videogames/chrono_cross-radical_dreamers.ogg
+videogames/castlevania_2-within_these_castle_walls.ogg
+videogames/finalfantasy/black_mages-black_mages/09-ff6_dancing_mad.ogg
+videogames/finalfantasy/black_mages-skies_above/02-ff4_zeromus.ogg
+videogames/finalfantasy/black_mages-skies_above/09-ff4_battle_with_the_four_fiends.ogg
+videogames/mario/nivi-m64_bowser_rock.mp3
+videogames/mario/super_mario_world__kefka_mix.mp3
+videogames/mario/ocremix-smw_ghosts_of_the_marble_hall.mp3
+videogames/sonic_2-mystic_cave_zone.ogg
+videogames/utada_hikaru-passion.mp3
+videogames/utada_hikaru-simple_and_clean.mp3
+collection/and_one-1997-best_of_and_one/09-deutschmachine.mp3
+collection/and_one-1997-nordhausen/02-sometimes.mp3
+collection/and_one-1997-sometimes/05-sometimes_instrumental.mp3
+collection/and_one-2000-virgin_superstar/06-panzer_mensch.mp3
+collection/and_one-2006-bodypop/02-military_fashion_show.ogg
+collection/and_one-2006-bodypop/04-so_klingt_liebe.ogg
+collection/and_one-2006-frontfeuer/04-steine_sind_steine.ogg
+collection/aneela-mahi/02-chori_chori.mp3
+collection/apocalyptica-misc/hope.mp3
+collection/apoptygma_berzerk-you_and_me_against_the_world/02-in_this_together.mp3
+collection/apoptygma_berzerk-you_and_me_against_the_world/06-back_on_track.mp3
+collection/apoptygma_berzerk-you_and_me_against_the_world/05-cambodia.mp3
+collection/apoptygma_berzerk-shine_on/01-shine_on.mp3
+collection/apoptygma_berzerk-harmonizer/03-unicorn.mp3
+collection/apoptygma_berzerk-harmonizer/04-until_the_end_of_the_world.mp3
+collection/assemblage_23-failure/05-disappoint.ogg
+collection/bad_religion-1993-recipe_for_hate/03-american_jesus.mp3
+collection/bad_religion-1993-recipe_for_hate/09-my_poor_friend_me.mp3
+collection/bad_religion-1994-stranger_than_fiction/06-better_off_dead.ogg
+collection/bad_religion-1994-stranger_than_fiction/07-infected.ogg
+collection/bad_religion-1994-stranger_than_fiction/13-inner_logic.ogg
+collection/bad_religion-1994-stranger_than_fiction/15-21st_century_digital_boy.ogg
+collection/bad_religion-1998-no_substance/02-shades_of_truth.mp3
+collection/bad_religion-2000-new_america/13-don_t_sell_me_short.ogg
+collection/bad_religion-2000-new_america/15-the_queen_of_the_21st_century.mp3
+collection/bad_religion-misc/who_we_are.mp3
+collection/beatles-1962_to_1966/09-in_my_life.mp3
+collection/beatles-1962_to_1966/12-eleanor_rigby.mp3
+collection/beatles-abbey_road/03-maxwell_s_silver_hammer.mp3
+collection/beatles-sgt_peppers_lonely_hearts_club_band/02-with_a_little_help_from_my_friends.mp3
+collection/beatles-sgt_peppers_lonely_hearts_club_band/04-getting_better.mp3
+collection/beatles-sgt_peppers_lonely_hearts_club_band/09-when_i_m_sixty_four.mp3
+collection/beatles-white_album/01-back_in_the_ussr.mp3
+collection/beatles-white_album/04-ob_la_di.mp3
+collection/beatles-yellow_submarine/all_together_now.mp3
+collection/beatles-yellow_submarine/yellow_submarine.mp3
+collection/beborn_beton-tales_from_another_world/01-another_world.mp3
+collection/beborn_beton-tales_from_another_world/03-poison_2002.mp3
+collection/beborn_beton-tales_from_another_world/06-life_is_a_distance.mp3
+collection/beborn_beton-tales_from_another_world/08-peach_2002.mp3
+collection/bob_dylan-freewheelin_bob_dylan/01-blowin_in_the_wind.ogg
+collection/bob_dylan-freewheelin_bob_dylan/07-don_t_think_twice_it_s_all_right.ogg
+collection/bowling_for_soup-great_burrito_extortion_case/07-luckiest_loser.mp3
+collection/bowling_for_soup-great_burrito_extortion_case/11-when_we_die.mp3
+collection/bowling_for_soup-drunk_enough_to_dance/03-girl_all_the_bad_guys_want.mp3
+collection/bowling_for_soup-drunk_enough_to_dance/06-life_after_lisa.mp3
+collection/bowling_for_soup-drunk_enough_to_dance/punk_rock_101.mp3
+collection/bowling_for_soup-drunk_enough_to_dance/11-out_the_window.mp3
+collection/bowling_for_soup-a_hangover_you_don_t_deserve/03-1985.mp3
+collection/bowling_for_soup-a_hangover_you_don_t_deserve/01-almost.mp3
+collection/brave_combo-polkas_for_a_gloomy_world/01-hosa_dyna.ogg
+collection/brave_combo-polkas_for_a_gloomy_world/07-mystery_spot_polka.ogg
+collection/celldweller-2001-celldweller_limited_edition/02-own_little_world.mp3
+collection/celldweller-2003-celldweller/02-switchback.mp3
+collection/celldweller-2003-celldweller/07-frozen.mp3
+collection/celldweller-2006-tragedy/01-tragedy.mp3
+collection/celtas_cortos-40_de_abril/01-retales_de_una_vida.mp3
+collection/celtas_cortos-cuentame_un_cuento/07-20_de_abril.ogg
+collection/cesium_137-synthetic_music_collection/09-atrophy.mp3
+collection/chumbawamba-2002-readymades/01-salt_fare_north_sea.mp3
+collection/chumbawamba-2002-readymades/02-jacobs_ladder.mp3
+collection/chumbawamba-2002-readymades/03-all_in_vain.mp3
+collection/chumbawamba-2004-un/01-the_wizard_of_menlo_park.ogg
+collection/chumbawamba-2004-un/03-on_ebay.ogg
+collection/chumbawamba-2004-un/04-everything_you_know_is_wrong.ogg
+collection/chumbawamba-2005-a_singsong_and_a_scrap/03-by_and_by.mp3
+collection/chumbawamba-2005-a_singsong_and_a_scrap/06-when_alexander_met_emma.mp3
+collection/chumbawamba-2008-the_boy_bands_have_won/06-unpindownable.mp3
+collection/chumbawamba-2008-the_boy_bands_have_won/08-word_bomber.mp3
+collection/chumbawamba-misc/her_majesty.mp3
+collection/chumbawamba-misc/pass_it_along__beats_mix.mp3
+collection/cibo_matto-stereotype_a/01-working_for_vacation.mp3
+collection/cibo_matto-stereotype_a/06-sci_fi_wasabi.mp3
+collection/clockwork_quartet-misc/watchmaker_s_apprentice.mp3
+collection/covenant-europa/01-tension.mp3
+collection/covenant-northern_light/09-we_want_revolution.ogg
+collection/covenant-united_states_of_mind/08-dead_stars.mp3
+collection/cyndi_lauper-misc/goonies_r_good_enough.mp3
+collection/cyndi_lauper-shes_so_unusual/03-when_you_were_mine.ogg
+collection/cyndi_lauper-shes_so_unusual/04-time_after_time.ogg
+collection/cyndi_lauper-shes_so_unusual/08-kiss_you.ogg
+collection/cyndi_lauper-sisters_of_avalon/06-hot_gets_a_little_cold.ogg
+collection/cyndi_lauper-sisters_of_avalon/12-brimstone_and_fire.ogg
+collection/cyndi_lauper-twelve_deadly_cyns/14-sally_s_pigeons.mp3
+collection/cypress_hill-greatest_hits_from_the_bong/07-dr_greenthumb.ogg
+collection/cypress_hill-black_sunday/02-i_ain_t_goin_out_like_that.mp3
+collection/danny_elfman-wanted__soundtrack/01-the_little_things.mp3
+collection/dar_williams-end_of_summer/01-are_you_out_there.mp3
+collection/dar_williams-misc/starman_cover.mp3
+collection/dar_williams-mortal_city/01-as_cool_as_i_am.mp3
+collection/dar_williams-the_honesty_room/04-when_sal_s_burned_down.ogg
+collection/david_newman-anastasia__soundtrack/04-in_the_dark_of_the_night.ogg
+collection/death_cab_for_cutie-1998-something_about_airplanes/02-president_of_what.mp3
+collection/death_cab_for_cutie-2001-photo_album/08-styrofoam_plates.mp3
+collection/death_cab_for_cutie-2001-photo_album/05-why_you_d_want_to_live_here.mp3
+collection/death_cab_for_cutie-2001-photo_album/02-a_movie_script_ending.mp3
+collection/death_cab_for_cutie-2003-transatlanticism/06-tiny_vessels.mp3
+collection/death_cab_for_cutie-2005-plans/02-soul_meets_body.mp3
+collection/death_cab_for_cutie-2005-plans/05-i_will_follow_you_into_the_dark.mp3
+collection/death_cab_for_cutie-2005-plans/07-someday_you_will_be_loved.mp3
+collection/death_cab_for_cutie-2008-narrow_stairs/02-i_will_possess_your_heart.mp3
+collection/death_cab_for_cutie-2008-narrow_stairs/04-cath.mp3
+collection/death_cab_for_cutie-2008-narrow_stairs/08-your_new_twin_sized_bed.mp3
+collection/depeche_mode-misc/blasphemous_rumors.mp3
+collection/depeche_mode-construction_time_again/04-everything_counts.mp3
+collection/digital_droo-misc/monkey_developers.mp3
+collection/disney-lion_king/be_prepared.mp3
+collection/dispatch-misc/the_general.mp3
+collection/dispatch-misc/open_up.mp3
+collection/do_as_infinity-break_of_dawn/raven.mp3
+collection/don_mclean-american_pie/03-vincent.mp3
+collection/don_mclean-don_mclean/01-dreidel.ogg
+collection/don_mclean-don_mclean/02-bronco_bill_s_lament.ogg
+collection/don_mclean-don_mclean/03-oh_my_what_a_shame.ogg
+collection/don_mclean-don_mclean/06-narcisissma.ogg
+collection/don_mclean-don_mclean/08-on_the_amazon.ogg
+collection/donnie_darko__soundtrack/tears_for_fears-mad_world.mp3
+collection/dr_demento-30th_anniversary_collection_disc1/11-henry_phillips-on_the_shoulders_of_freaks.ogg
+collection/dr_demento-30th_anniversary_collection_disc2/21-lets_all_get_demented.ogg
+collection/dr_demento-blue_anniversary_cd/lazin_in_the_shade.mp3
+collection/dr_demento-dr_demento_20th_anniversary_collection_disc_2/08-steve_martin-king_tut.ogg
+collection/dr_demento-dr_demento_s_country_corn/17-the_streak.ogg
+collection/dr_demento-misc/bobby_pickett-monster_mash.ogg
+collection/dr_demento-misc/sheb_wooley-purple_people_eater.ogg
+collection/dr_horrible_s_sing_along_blog/06-my_eyes.mp3
+collection/dr_horrible_s_sing_along_blog/09-brand_new_day.mp3
+collection/dr_horrible_s_sing_along_blog/12-slipping.mp3
+collection/dr_horrible_s_sing_along_blog/13-everything_you_ever.mp3
+collection/dresden_dolls-dresden_dolls/06-coin_operated_boy.mp3
+collection/dresden_dolls-yes_virginia/06-dirty_business.mp3
+collection/eels-beautiful_freak/novacaine_for_the_soul.mp3
+collection/eels-daisies_of_the_galaxy/flyswatter.mp3
+collection/eels-daisies_of_the_galaxy/its_a_motherfucker.mp3
+collection/eels-electroshock_blues/03-cancer_for_the_cure.mp3
+collection/eels-souljacker/bus_stop_boxer.ogg
+collection/eels-souljacker/friendly_ghost.ogg
+collection/eels-souljacker/woman_driving_man_sleeping.ogg
+collection/electric_light_orchestra-misc/mr_blue_sky.mp3
+collection/elton_john-greatest_hits/01-your_song.mp3
+collection/eminem-eminem_show/03-business.mp3
+collection/everclear-so_much_for_the_afterglow/01-so_much_for_the_afterglow.mp3
+collection/everclear-so_much_for_the_afterglow/12-why_i_dont_believe_in_god.mp3
+collection/fall_out_boy-from_under_the_cork_tree/03-dance_dance.mp3
+collection/fall_out_boy-from_under_the_cork_tree/11-a_little_less_sixteen_candles_a_little_more_touch_me.mp3
+collection/fastball-all_the_pain_money_can_buy/10-out_of_my_head.ogg
+collection/fastball-all_the_pain_money_can_buy/01-the_way.ogg
+collection/firewater-1996-get_off_the_cross_we_need_the_wood_for_the_fire/01-some_strange_reaction.mp3
+collection/firewater-1996-get_off_the_cross_we_need_the_wood_for_the_fire/04-when_i_burn_this_place_down.mp3
+collection/firewater-1996-get_off_the_cross_we_need_the_wood_for_the_fire/06-i_am_the_rain.mp3
+collection/firewater-1998-ponzi_scheme/05-whistling_in_the_dark.mp3
+collection/firewater-1998-ponzi_scheme/09-so_long_superman.mp3
+collection/firewater-2001-psychopharmacology/02-psychopharmacology.mp3
+collection/firewater-2001-psychopharmacology/04-get_out_of_my_head.mp3
+collection/firewater-2001-psychopharmacology/09-black_box_recording.mp3
+collection/firewater-2001-psychopharmacology/10-she_s_the_mistake.mp3
+collection/firewater-2003-man_on_the_burning_tightrope/02-anything_at_all.ogg
+collection/firewater-2003-man_on_the_burning_tightrope/03-too_much_is_never_enough.ogg
+collection/firewater-2003-man_on_the_burning_tightrope/04-too_many_angels.ogg
+collection/firewater-2003-man_on_the_burning_tightrope/05-dark_days_indeed.ogg
+collection/firewater-2003-man_on_the_burning_tightrope/06-the_man_on_the_burning_tightrope.ogg
+collection/firewater-2003-man_on_the_burning_tightrope/11-don_t_make_it_stop.ogg
+collection/firewater-2003-man_on_the_burning_tightrope/12-the_notorious_and_legendary_dog_and_pony_show.ogg
+collection/firewater-2003-man_on_the_burning_tightrope/14-dark_days_revisited.ogg
+collection/flogging_molly-drunken_lullabies/03-may_the_living_be_dead_in_our_wake.mp3
+collection/flogging_molly-drunken_lullabies/04-if_i_ever_leave_this_world_alive.mp3
+collection/flogging_molly-drunken_lullabies/12-the_sun_never_shines_on_closed_doors.mp3
+collection/flogging_molly-float/05-lightning_storm.mp3
+collection/flogging_molly-float/07-us_of_lesser_gods.mp3
+collection/flogging_molly-swagger/10-devil_s_dance_floor.ogg
+collection/flogging_molly-swagger/08-black_friday_rule.ogg
+collection/flogging_molly-whiskey_on_a_sunday/01-laura.mp3
+collection/flogging_molly-within_a_mile_of_home/01-screaming_at_the_wailing_wall.mp3
+collection/flogging_molly-within_a_mile_of_home/14-with_a_wonder_and_a_wild_desire.mp3
+collection/fountains_of_wayne-misc/too_cool_for_school.ogg
+collection/fountains_of_wayne-traffic_and_weather/01-someone_to_love.mp3
+collection/fountains_of_wayne-welcome_interstate_managers/01-mexican_wine.mp3
+collection/frank_zappa-1998-cheap_thrills/06-cheap_thrills.mp3
+collection/frank_zappa-1998-cheap_thrills/09-zomby_wolf.mp3
+collection/frank_zappa-1999-son_of_cheep_thrills/09-sinister_footwear_2nd_movement.mp3
+collection/genesis-invisible_touch/08-the_brazilian.mp3
+collection/genesis-invisible_touch/07-throwing_it_all_away.mp3
+collection/genesis-invisible_touch/05-anything_she_does.mp3
+collection/genesis-invisible_touch/03-land_of_confusion.mp3
+collection/gogol_bordello-gypsy_punks/09-start_wearing_purple.mp3
+collection/gogol_bordello-super_taranta/02-wonderlust_king.mp3
+collection/gogol_bordello-super_taranta/08-tribal_connection.mp3
+collection/gogol_bordello-voi_la_intruder/05-start_wearing_purple.mp3
+collection/hedwig_and_the_angry_inch/02-origin_of_love.mp3
+collection/hedwig_and_the_angry_inch/04-wicked_little_town_reprise.mp3
+collection/hedwig_and_the_angry_inch/05-wig_in_a_box.mp3
+collection/hedwig_and_the_angry_inch/08-exquisite_corpse.mp3
+collection/hedwig_and_the_angry_inch/09-midnight_radio.mp3
+collection/internationale/internationale-jazz.mp3
+collection/internationale/internationale-weird_fr_jazz.mp3
+collection/jamiroquai-1996-traveling_without_moving/01-virtual_insanity.ogg
+collection/jamiroquai-1996-traveling_without_moving/02-cosmic_girl.ogg
+collection/jamiroquai-1999-synkronized/01-canned_heat.ogg
+collection/jamiroquai-1999-synkronized/07-supersonic.ogg
+collection/jamiroquai-misc/deeper_underground.mp3
+collection/jared_emerson_johnson-sam_and_max_season_one/107-eye_bo_unveiled.ogg
+collection/jared_emerson_johnson-sam_and_max_season_one/128-ted_e_bear_s_mafia_free_playland_and_casino.ogg
+collection/jared_emerson_johnson-sam_and_max_season_one/129-just_you_and_me_and_ted_e_bear.ogg
+collection/jared_emerson_johnson-sam_and_max_season_one/211-good_for_you_good_for_me.ogg
+collection/jared_emerson_johnson-sam_and_max_season_one/230-hugh_s_inner_sanctum.ogg
+collection/jared_emerson_johnson-sam_and_max_season_two/103-arctic_hush.ogg
+collection/jared_emerson_johnson-sam_and_max_season_two/104-the_big_stinker.ogg
+collection/jared_emerson_johnson-sam_and_max_season_two/105-unholy_workshop.ogg
+collection/jared_emerson_johnson-sam_and_max_season_two/107-the_creature_was_stirring.ogg
+collection/jared_emerson_johnson-sam_and_max_season_two/115-new_location_unlocked_midtown_remix.ogg
+collection/jared_emerson_johnson-sam_and_max_season_two/204-la_canción_de_los_mariachis.ogg
+collection/jared_emerson_johnson-sam_and_max_season_two/207-twilight_eternal.ogg
+collection/jared_emerson_johnson-sam_and_max_season_two/209-4_59.ogg
+collection/jared_emerson_johnson-sam_and_max_season_two/210-fugue_and_dies_iræ.ogg
+collection/john_linnell-state_songs/04-south_carolina.ogg
+collection/john_williams-fiddler_on_the_roof/09-sunrise_sunset.mp3
+collection/john_williams-fiddler_on_the_roof/05-to_life.mp3
+collection/john_williams-fiddler_on_the_roof/10-wedding_celebration_and_bottle_dance.mp3
+collection/john_williams-fiddler_on_the_roof/17-anatevka.mp3
+collection/jonathan_coulton-misc/still_alive.ogg
+collection/jonathan_coulton-misc/want_you_gone.ogg
+collection/jonathan_coulton-2006-thing_a_week_i/04-shop_vac.mp3
+collection/jonathan_coulton-2006-thing_a_week_ii/13-re_your_brains.mp3
+collection/jonathan_coulton-2004-where_tradition_meets_tomorrow/01-the_future_soon.mp3
+collection/jonathan_coulton-2004-where_tradition_meets_tomorrow/skullcrusher_mountain.mp3
+collection/jonathan_coulton-2011-artificial_heart/01-sticking_it_to_myself.ogg
+collection/jonathan_coulton-2011-artificial_heart/02-artificial_heart.ogg
+collection/jonathan_coulton-2011-artificial_heart/06-sucker_punch.ogg
+collection/jonathan_coulton-2011-artificial_heart/16-still_alive__featuring_sara_quin.ogg
+collection/jonathan_coulton-2011-artificial_heart/17-want_you_gone__elegant_too_remix.ogg
+collection/kal_ho_naa_ho__soundtrack/01-kal_ho_naa_ho.mp3
+collection/kal_ho_naa_ho__soundtrack/02-maahi_ve.mp3
+collection/kal_ho_naa_ho__soundtrack/05-kal_ho_naa_ho_sad.mp3
+collection/knitting_on_the_roof/04-uri_caine-sabbath_prayer.ogg
+collection/knitting_on_the_roof/08-jill_sobule-sunrise_sunset.ogg
+collection/kompressor-crush_television/02-rappers_we_crush.mp3
+collection/kompressor-discipline/11-crushing_in_progress.mp3
+collection/kompressor-world_domination/06-k_is_for_kompressor.mp3
+collection/lemon_demon-misc/pumpkin_pie.mp3
+collection/lemon_demon-misc/ultimate_showdown_of_ultimate_destiny.mp3
+collection/lemon_demon-misc/word_disassociation.mp3
+collection/leningrad_cowboys-go_space/06-leningrad.mp3
+collection/leningrad_cowboys-life_in_prowinzz/15-those_were_the_days.mp3
+collection/marx_brothers-misc/freedonia_hymn.mp3
+collection/mc_frontalot-final_boss/07-diseases_of_yore.mp3
+collection/mc_frontalot-final_boss/14-final_boss.mp3
+collection/mc_frontalot-nerdcore_hiphop/08-special_delivery.mp3
+collection/mc_frontalot-secrets_from_the_future/01-secrets_from_the_future.ogg
+collection/mc_frontalot-secrets_from_the_future/07-it_is_pitch_dark.ogg
+collection/mc_frontalot-secrets_from_the_future/08-forbidden_planet.ogg
+collection/mc_frontalot-secrets_from_the_future/11-very_poorly_concealed_secret_track.ogg
+collection/mc_frontalot-zero_day/01-zero_day.ogg
+collection/mc_frontalot-zero_day/07-disaster.ogg
+collection/mc_frontalot-zero_day/14-the_council_of_loathing.ogg
+collection/melotron-sternenstaub/05-erwartungen.mp3
+collection/monkees-misc/last_train_to_clarksville.mp3
+collection/monty_python-monty_python_sings/24-galaxy_song.ogg
+collection/monty_python-spamalot/05-monks_chant_he_is_not_dead_yet.mp3
+collection/monty_python-spamalot/18-you_wont_succeed_on_broadway.mp3
+collection/monty_python-spamalot/13-run_away.mp3
+collection/monty_python-spamalot/16-always_look_on_the_bright_side_of_life.mp3
+collection/mst3k-clowns_in_the_sky_i/27-tubular_boobular.ogg
+collection/mst3k-clowns_in_the_sky_i/26-whom_shall_i_kill.ogg
+collection/mst3k-clowns_in_the_sky_i/19-theme_song_version_2.ogg
+collection/mst3k-clowns_in_the_sky_ii/04-when_i_held_your_brain_in_my_arms.ogg
+collection/mst3k-clowns_in_the_sky_ii/11-stay.ogg
+collection/mst3k-misc/to_earth.mp3
+collection/mst3k-misc/toss.ogg
+collection/muse-1999-showbiz/02-muscle_museum.mp3
+collection/muse-2001-origin_of_simmetry/05-plug_in_baby.mp3
+collection/muse-2001-origin_of_simmetry/06-citzen_erased.mp3
+collection/muse-2003-absolution/02-apocalypse_please.mp3
+collection/muse-2003-absolution/05-stockholm_syndrome.mp3
+collection/muse-2003-absolution/13-thoughts_of_a_dying_atheist.mp3
+collection/muse-2009-resistance/01-uprising.ogg
+collection/mystic_knights_of_the_oingo_boingo-forbidden_zone/01-forbidden_zone.mp3
+collection/mystic_knights_of_the_oingo_boingo-forbidden_zone/03-some_of_these_days.mp3
+collection/mystic_knights_of_the_oingo_boingo-forbidden_zone/11-squeezit_the_moocher.mp3
+collection/nightmare_before_christmas/03-this_is_halloween.mp3
+collection/nightmare_before_christmas/06-whats_this.mp3
+collection/nightmare_before_christmas/09-jack_s_obsession.mp3
+collection/nightmare_before_christmas/10-kidnap_the_sandy_claws.mp3
+collection/nightmare_before_christmas/13-oogie_boogie.mp3
+collection/nightmare_before_christmas/14-sallys_song.mp3
+collection/nightmare_before_christmas/16-poor_jack.mp3
+collection/nightmare_before_christmas_3d/02-fiona_apple-sally_s_song.mp3
+collection/nightmare_before_christmas_3d/05-panic_at_the_disco-this_is_halloween.mp3
+collection/nightmare_revisited/01-devotchka-overture.mp3
+collection/nightmare_revisited/07-polyphonic_spree-town_meeting_song.mp3
+collection/nightmare_revisited/14-amy_lee-sally_s_song.mp3
+collection/no_doubt-return_of_saturn/03-bathwater.ogg
+collection/no_doubt-return_of_saturn/12-staring_problem.ogg
+collection/no_doubt-tragic_kingdom/01-spiderwebs.mp3
+collection/no_doubt-tragic_kingdom/02-excuse_me_mr.mp3
+collection/no_doubt-tragic_kingdom/10-don_t_speak.mp3
+collection/no_doubt-tragic_kingdom/14-tragic_kingdom.mp3
+collection/no_use_for_a_name-1999-more_betterness/01-not_your_savior.ogg
+collection/no_use_for_a_name-1999-more_betterness/02-life_size_mirror.ogg
+collection/no_use_for_a_name-1999-more_betterness/09-always_carrie.ogg
+collection/no_use_for_a_name-1999-more_betterness/12-coming_too_close.ogg
+collection/no_use_for_a_name-2005-keep_them_confused/03-for_fiona.mp3
+collection/no_use_for_a_name-2005-keep_them_confused/04-check_for_a_pulse.mp3
+collection/no_use_for_a_name-2005-keep_them_confused/12-slowly_fading_fast.mp3
+collection/no_use_for_a_name-misc/dumb_reminders.mp3
+collection/no_use_for_a_name-misc/international_you_day.mp3
+collection/oingo_boingo-1981-only_a_lad/06-only_a_lad.ogg
+collection/oingo_boingo-1981-only_a_lad/09-imposter.mp3
+collection/oingo_boingo-1982-nothing_to_fear/03-private_life.mp3
+collection/oingo_boingo-1983-good_for_your_soul/07-nothing_bad_ever_happens.ogg
+collection/oingo_boingo-1984-so_lo/05-it_only_makes_me_laugh.mp3
+collection/oingo_boingo-1987-boi_ngo/05-we_close_our_eyes.mp3
+collection/oingo_boingo-1987-boi_ngo/06-not_my_slave.mp3
+collection/oingo_boingo-1991-best_o_boingo/08-sweat.ogg
+collection/oingo_boingo-1991-best_o_boingo/12-no_one_lives_forever.ogg
+collection/openbsd/34-the_legend_of_puffy_hood.ogg
+collection/openbsd/bonus-openvox.ogg
+collection/optimus_rhyme-misc/obey_the_moderator.mp3
+collection/optimus_rhyme-school_the_indie_rockers/12-coded_and_united.mp3
+collection/optimus_rhyme-school_the_indie_rockers/06-ping_pong_song.mp3
+collection/plaid_tongued_devils-1999-in_klezskavania/01-in_kleskavania.ogg
+collection/plaid_tongued_devils-2002-belladonna/01-flea_circus.ogg
+collection/plaid_tongued_devils-2002-belladonna/02-mermaid.ogg
+collection/plaid_tongued_devils-2002-belladonna/05-i_think_i_m_a_wolf.ogg
+collection/plaid_tongued_devils-2002-belladonna/13-russian_history_xxx.ogg
+collection/plaid_tongued_devils-2005-monsteroma/02-bollywood_queen.ogg
+collection/prinzen-alles_nur_geklaut/02-alles_nur_geklaut.mp3
+collection/prinzen-d/02-deutschland.mp3
+collection/prinzen-schweine/03-schwein_sein.mp3
+collection/radiohead-10spot/03-karma_police.mp3
+collection/radiohead-10spot/05-exit_music_for_a_film.mp3
+collection/radiohead-10spot/07-subterranean_homesick_alien.mp3
+collection/radiohead-10spot/13-no_surprises.mp3
+collection/radiohead-10spot/16-paranoid_android.mp3
+collection/radiohead-10spot/21-nice_dream.mp3
+collection/radiohead-kid_a/01-everything_in_its_right_place.mp3
+collection/red_army_choir-misc/down_under.ogg
+collection/red_army_choir-misc/katusha.mp3
+collection/red_army_choir-misc/kalinka.mp3
+collection/red_army_choir-misc/soviet_national_anthem.mp3
+collection/regina_spektor-begin_to_hope/01-fidelity.mp3
+collection/regina_spektor-begin_to_hope/04-on_the_radio.mp3
+collection/regina_spektor-far/01-the_calculation.mp3
+collection/regina_spektor-far/02-eet.mp3
+collection/regina_spektor-far/03-blue_lips.mp3
+collection/regina_spektor-far/06-laughing_with.mp3
+collection/regina_spektor-far/10-genius_next_door.mp3
+collection/regina_spektor-far/12-one_more_time_with_feeling.mp3
+collection/regina_spektor-misc/the_call.ogg
+collection/regina_spektor-soviet_kitsch/05-us.ogg
+collection/roxette-look_sharp/08-dangerous.ogg
+collection/sum_41-does_this_look_infected/02-over_my_head_better_off_dead.ogg
+collection/sum_41-does_this_look_infected/04-still_waiting.ogg
+collection/sum_41-chuck/02-no_reason.ogg
+collection/sum_41-chuck/03-were_all_to_blame.ogg
+collection/sum_41-chuck/04-angels_with_dirty_faces.ogg
+collection/sum_41-chuck/07-open_your_eyes.ogg
+collection/sum_41-chuck/11-pieces.ogg
+collection/tmbg-1986-tmbg/04-don_t_lets_start.ogg
+collection/tmbg-1986-tmbg/11-shes_an_angel.ogg
+collection/tmbg-1986-tmbg/19-rhythm_section_want_ad.ogg
+collection/tmbg-1988-lincoln/01-ana_ng.ogg
+collection/tmbg-1988-lincoln/04-purple_toupee.ogg
+collection/tmbg-1988-lincoln/06-where_your_eyes_don_t_go.ogg
+collection/tmbg-1990-flood/02-birdhouse_in_your_soul.ogg
+collection/tmbg-1990-flood/09-we_want_a_rock.ogg
+collection/tmbg-1990-flood/10-someone_keeps_moving_my_chair.ogg
+collection/tmbg-1990-flood/14-whistling_in_the_dark.ogg
+collection/tmbg-1992-apollo_18/02-i_palindrome_i.mp3
+collection/tmbg-1992-apollo_18/05-mammal.ogg
+collection/tmbg-1992-apollo_18/06-the_statue_got_me_high.mp3
+collection/tmbg-1992-apollo_18/09-dinner_bell.ogg
+collection/tmbg-1992-apollo_18/12-which_describes_how_youre_feeling.ogg
+collection/tmbg-1994-john_henry/02-snail_shell.ogg
+collection/tmbg-1994-john_henry/06-i_should_be_allowed_to_think.mp3
+collection/tmbg-1994-john_henry/08-why_must_i_be_sad.mp3
+collection/tmbg-1994-john_henry/20-end_of_the_tour.mp3
+collection/tmbg-1996-factory_showroom/02-till_my_head_falls_off.ogg
+collection/tmbg-1996-factory_showroom/05-metal_detector.ogg
+collection/tmbg-1996-factory_showroom/09-spiraling_shape.ogg
+collection/tmbg-1996-factory_showroom/13-the_bells_are_ringing.ogg
+collection/tmbg-1998-severe_tire_damage/01-doctor_worm.mp3
+collection/tmbg-2001-mink_car/02-cyclops_rock.mp3
+collection/tmbg-misc/am_i_awake.mp3
+collection/toad_the_wet_sprocket-1991-fear/01-walk_on_the_ocean.ogg
+collection/toad_the_wet_sprocket-1991-fear/02-is_it_for_me.ogg
+collection/toad_the_wet_sprocket-1991-fear/07-before_you_were_born.ogg
+collection/toad_the_wet_sprocket-1991-fear/06-pray_your_gods.ogg
+collection/toad_the_wet_sprocket-1991-fear/08-something_to_say.ogg
+collection/toad_the_wet_sprocket-1991-fear/12-i_will_not_take_these_things_for_granted.ogg
+collection/tom_lehrer-misc/selling_out.mp3
+collection/tom_lehrer-misc/that_s_mathematics.ogg
+collection/tom_lehrer-songs_and_more_songs_by_tom_lehrer/16-the_elements.ogg
+collection/tom_lehrer-that_was_the_year_that_was/05-smut.ogg
+collection/tom_lehrer-that_was_the_year_that_was/10-new_math.ogg
+collection/tom_lehrer-that_was_the_year_that_was/14-the_vatican_rag.ogg
+collection/tom_lehrer-that_was_the_year_that_was/13-wernher_von_braun.ogg
+collection/toys__soundtrack/02-closing_of_the_year.ogg
+collection/toys__soundtrack/09-thomas_dolby-the_mirror_song.ogg
+collection/vienna_teng-dreaming_through_the_noise/01-blue_caravan.mp3
+collection/vienna_teng-inland_territory/03-antebellum.mp3
+collection/vienna_teng-inland_territory/09-no_gringo.mp3
+collection/vienna_teng-waking_hour/01-the_tower.ogg
+collection/vienna_teng-waking_hour/03-gravity.ogg
+collection/vienna_teng-waking_hour/06-say_uncle.ogg
+collection/vienna_teng-warm_strangers/06-my_medea.ogg
+collection/vienna_teng-warm_strangers/11-the_atheist_christmas_carol.ogg
+collection/vnv_nation-1999-empires/06-distant_rubicon_ii.ogg
+collection/vnv_nation-2000-standing/04-standing.mp3
+collection/vnv_nation-2002-futureperfect/11-beloved.ogg
+collection/vnv_nation-misc/end_of_days.mp3
+collection/weird_al_yankovic-misc/ain_t_this_the_life.ogg
+collection/weird_al_yankovic-misc/spy_hard.mp3
+collection/weird_al_yankovic-1989-uhf/06-uhf.mp3
+collection/weird_al_yankovic-1996-bad_hair_day/02-everything_you_know_is_wrong.ogg
+collection/weird_al_yankovic-2003-poodle_hat/02-hardware_store.ogg
+collection/weird_al_yankovic-2003-poodle_hat/10-bob.ogg
+collection/weird_al_yankovic-2011-alpocalypse/01-perform_this_way.mp3
+collection/weird_al_yankovic-2011-alpocalypse/03-tmz.mp3
+collection/weird_al_yankovic-2011-alpocalypse/05-polka_face.mp3
+collection/wolfsheim-1999-spectators/once_in_a_lifetime.mp3
+collection/wolfsheim-2003-casting_shadows/04-kein_zurück.mp3
+collection/wolfsheim-misc/find_you_re_here.mp3
+collection/zebrahead-mfzb/11-falling_apart.mp3
+};
+
+foreach my $song (@misc_files)
+	{
+	my $songfn = $srcdir . '/misc/' . $song;
+	if(! -f $songfn)
+		{die "Song [$songfn] does not exist\n";}
+	$filelist{"misc/$song"} = $songfn;
+	}
+
+foreach my $rsongdir (@musicdirs_entire)
+	{
+	my $songdir = $srcdir . '/' . $rsongdir;
+	if(! -d $songdir)
+		{die "Songdir [$songdir] does not exist\n";}
+	# Now, we need to expand this to a list of individual files in the
+	# dir, so any filename corrections can be handled at the filelist
+	# level directly rather than requiring deep parsing.
+	my @filelist = dir_deeplist($songdir);
+	foreach my $file (@filelist)
+		{
+		my $shortfile = $file;
+		$shortfile =~ s/^$srcdir\///; # Ensure it's trimmed
+		$filelist{$shortfile} = $file;
+		}
+	}
+
+foreach my $song (@musicfiles_other)
+	{
+	my $songfn = $srcdir . '/' . $song;
+	if(! -f $songfn)
+		{die "Song [$songfn] does not exist\n";}
+	$filelist{$song} = $songfn;
+	}
+return %filelist;
+}
+
+######
+
+sub dir_deeplist
+{ # Given a directory, return just the files in it. Might need to recurse deeply
+my ($indir) = @_;
+my @returner;
+opendir(IN, $indir) || die "Failed to open indir [$indir]\n";
+my @contents =	map {"$indir/" . $_}
+		map {decode_utf8($_)}
+		grep{! /^\./} # Don't want "." or ".."
+		readdir(IN); # Does this keep the path?
+closedir(IN);
+foreach my $innard (@contents)
+	{
+#	print "Parse: [$innard]\n";
+	if(-f $innard)
+		{push(@returner, $innard);}
+	elsif(-d $innard)
+		{push(@returner, dir_deeplist($innard));}
+	else
+		{print "Failed to parse [$innard]\n";die "\n";}
+	}
+return @returner;
+}
+

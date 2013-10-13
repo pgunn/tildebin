@@ -1,0 +1,4 @@
+#!/bin/sh
+export MPLAYEROPTS="-speed 1.2 -af scaletempo"
+smart "$@"
+

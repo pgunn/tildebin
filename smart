@@ -1,0 +1,279 @@
+#!/usr/bin/perl -w
+
+# wrapper for media players. 
+
+sub recurse_deeplist($$;);
+my $mplayeropts = $ENV{MPLAYEROPTS};
+$mplayeropts //= '';
+
+our %player = ( 'mp3' => "mplayer $mplayeropts",
+		'mp2' => "mplayer $mplayeropts",
+		'm4a' => "mplayer $mplayeropts",
+		'ogg' => "mplayer $mplayeropts",
+		'flac' => "mplayer $mplayeropts",
+#		'au'  => 'killall esd;play', # killall makes sure esd
+#		'wav' => 'killall esd;play', # has released snd device
+		'au'  => "mplayer $mplayeropts", 
+		'wav' => "mplayer $mplayeropts", 
+		'raw' => 'playraw',
+		'nsf' => 'nosefart', # Warning! Does not usually exit!
+			# assume users would like these played with video off
+		'rm' 	=> "nvmplayer $mplayeropts",
+		'avi' 	=> "nvmplayer $mplayeropts",
+		'mpeg' 	=> "nvmplayer $mplayeropts",
+		'mpg' 	=> "nvmplayer $mplayeropts",
+		'mov' 	=> "nvmplayer $mplayeropts",
+		'asf' 	=> "nvmplayer $mplayeropts",
+		'wmv' 	=> "nvmplayer $mplayeropts",
+		'mkv' 	=> "nvmplayer $mplayeropts",
+		'mp4' 	=> "nvmplayer $mplayeropts",
+		'flv'	=> "nvmplayer $mplayeropts"
+
+		# Remember, timidity sometimes hangs after playing a song
+#		'mid' => 'timidity -Os -in'
+		);
+
+# Specify your fullscreen movie player here.
+our %movplayer =(
+		'rm' 	=> "fmplayer $mplayeropts",
+		'avi' 	=> "fmplayer $mplayeropts",
+		'mpeg' 	=> "fmplayer $mplayeropts",
+		'mpg' 	=> "fmplayer $mplayeropts",
+		'mov' 	=> "fmplayer $mplayeropts",
+		'asf' 	=> "fmplayer $mplayeropts",
+		'wmv' 	=> "fmplayer $mplayeropts",
+		'mp4' 	=> "fmplayer $mplayeropts",
+		'mkv' 	=> "fmplayer $mplayeropts",
+		'flv'	=> 'vlc'
+		);
+# Note: for me, fmplayer is a shell script:
+# #!/bin/sh
+# mplayer -rootwin -fs $*
+
+
+# And your partscreen movie player here.
+our %wmovplayer =(
+		'rm' 	=> "mplayer $mplayeropts",
+		'avi' 	=> "mplayer $mplayeropts",
+		'mpeg' 	=> "mplayer $mplayeropts",
+		'mpg' 	=> "mplayer $mplayeropts",
+		'mov' 	=> "mplayer $mplayeropts",
+		'asf' 	=> "mplayer $mplayeropts",
+		'mp4' 	=> "mplayer $mplayeropts",
+		'wmv' 	=> "mplayer $mplayeropts",
+		'mkv' 	=> "mplayer $mplayeropts",
+		'flv'	=> "mplayer $mplayeropts"
+#		'flv'	=> 'vlc'
+		);
+main();
+################################
+
+sub main
+{
+my($prefs,@flist) = handle_args(@ARGV);
+@flist = get_deeplist($prefs,@flist);
+#print join("\n", @flist);
+while(@flist > 0)
+	{
+	my $rindex = 0;
+	if($$prefs{shuf})
+		{$rindex = int(rand(scalar(@flist)));}
+	my $selected_file = $flist[$rindex];
+	if($$prefs{mode} eq 'once')
+		{
+		print "Cut the cow at $rindex: [$selected_file]\n";
+		splice(@flist, $rindex, 1);
+		}
+#	print "Moo\n";
+	play_file($prefs, $selected_file);
+	sleep(2); # Some players don't let go of the sound device quick enough.
+		# In practice, sometimes even this hasn't been enough. Is it
+		# esd's fault?
+	}
+}
+
+sub handle_args(@)
+{
+my (@args) = @_;
+my %returner;
+my @flist;
+$returner{mode} = 'once';
+$returner{shuf} = 0;
+$returner{class} = 'songs';
+foreach my $arg (@args)
+	{
+	if($arg =~ /^-/)
+		{
+		if($arg =~ /^-z$/)
+			{
+			$returner{mode} = 'once';
+			$returner{shuf} = 1;
+			next;
+			}
+		if($arg =~ /^-Z$/)
+			{
+			$returner{mode} = 'loop';
+			$returner{shuf} = 1;
+			next;
+			}
+		if($arg =~ /^-m$/) # fullscreen movie playing.
+			{$returner{class} = 'movies';next;}
+		if($arg =~ /^-M$/) # partscreen movie playing.
+			{$returner{class} = 'Movies';next;}
+		if($arg =~ /^-s$/)
+			{$returner{class} = 'songs';next;}
+		if($arg =~ /^--?h(:?elp)?$/i)
+			{die "Usage: $0 [-z|-Z][-m|-M|-s]\n";}
+		}
+	else
+		{
+		if( (-f $arg) && ($arg =~ /\.smart$/) )
+			{
+			print "Parsing playlist [$arg]\n";
+			push(@flist, get_playlist_contents($arg));
+			print "Read " . scalar(get_playlist_contents($arg)) . " entries\n";
+			next;
+			}
+		elsif((-d $arg) || (-f $arg))
+			{
+			push(@flist, $arg);
+			print "Save [$arg]\n";
+			next;
+			}
+		else
+			{
+			die "Unknown file [$arg]\n";
+			}
+		}
+	}
+if(scalar(@flist) == 0)
+	{
+	print "No files specified, playing current hierarchy\n";
+	push(@flist, '.'); # no files = play deep hierarchy
+	$returner{shuf} = 1; # Also, in this case, we probably want random.
+	}
+return (\%returner, @flist);
+}
+
+sub get_deeplist($@)
+{
+my($prefs,@flist) = @_;
+my @dl;
+foreach my $fle (@flist)
+	{
+	$fle =~ s/\/$//; # Remove trailing slash!
+	if(-d $fle)
+		{
+		push(@dl, recurse_deeplist($$prefs{class}, $fle));
+		}
+	else
+		{
+		my $t_ext = get_extension($fle);
+		if( (($$prefs{class} eq 'songs') && defined($player{$t_ext}))
+		|| (($$prefs{class} =~ /movies/i) && defined($movplayer{$t_ext})) )
+			{
+			push(@dl, $fle);
+			}
+#		else
+#			{print "Yoyoyoy " . $$prefs{class} . ":$fle:$t_ext\n";}
+		}
+	}
+return @dl;
+}
+
+sub recurse_deeplist($$;)
+{
+my ($class, $path) = @_;
+my @interesting;
+opendir(HERE, $path);
+my @seen = 
+	grep !/^\./, # We don't want dotfiles, especially '.' and '..'
+	readdir(HERE);
+closedir(HERE);
+foreach my $fn (@seen)
+	{
+	if(-d "$path/$fn")
+		{
+		push(@interesting,recurse_deeplist($class, "$path/$fn"));
+		}
+	else
+		{
+		my $t_ext = get_extension("$path/$fn");
+		if( (($class eq 'songs') && defined($player{$t_ext}))
+		|| (($class =~ /movies/i) && defined($movplayer{$t_ext})) )
+			{
+			push(@interesting, "$path/$fn");
+			}
+		else
+			{
+#			print "Ignore file $path/$fn -- no player for ext [$t_ext]\n";
+			}
+		}
+	}
+return @interesting;
+}
+
+sub get_extension($;)
+{
+my ($tf) = @_;
+local $_;
+# $tf =~ /.*\/.*\.(.*)$/;
+$tf =~ /(.*\/)?.*\.(.*?)$/;
+if(! defined($2)) {return '';}
+else {return lc($2);}
+}
+
+sub play_file($$;)
+{
+my ($prefs, $file) = @_;
+my $mplayer;
+if($$prefs{class} eq 'songs')
+	{$mplayer = $player{get_extension($file)}; }
+elsif($$prefs{class} =~ 'movies')
+	{
+	$mplayer = $movplayer{get_extension($file)};
+	}
+elsif($$prefs{class} eq 'Movies')
+	{
+	$mplayer = $wmovplayer{get_extension($file)};
+	}
+print "Play $file with " . $mplayer . "\n";
+system("$mplayer \"$file\"");
+}
+
+sub get_playlist_contents($;)
+{
+my ($playlist) = @_;
+local $_;
+open(PLAYLIST, $playlist) || die "Could not open playlist file $playlist: $!\n";
+my @guts;
+my @returner;
+while(my $pline = <PLAYLIST>)
+	{
+	chomp($pline);
+	next if($pline =~ /^\s*#/);
+	next if($pline =~ /^\s*$/);
+	push(@guts, split(/ /, $pline));
+	}
+#print "D: Read " . scalar(@guts) . " candidates\n";
+#print join("\n", @guts);
+close(PLAYLIST);
+map
+	{
+	my @files = glob($_);
+	foreach my $file (@files)
+		{
+		if(-d $file)
+			{ # FIXME Should validate the files
+			push(@returner, get_deeplist($file));
+			}
+		elsif(! -f $file)
+			{
+			die "Playlist $playlist specified invalid file [$file] in glob [$_]\n";
+			}
+		push(@returner, $file);
+		}
+	} @guts;
+return @returner;
+}
+

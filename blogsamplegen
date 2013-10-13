@@ -1,0 +1,70 @@
+#!/usr/bin/perl -w
+
+# Script to take the output of blogwordfreq and generate a sample document that has:
+# 1) Grammatical/structural words filtered out
+# 2) A rough representation of all the remaining words with the same percentage distribution as
+#	the library of works blogwordfreq works on
+# This is useful for feeding to sites like http://wordle.net
+
+my @blahwords = qw/that with some this from have were more/;
+my %blah;
+map {$blah{$_} = 1;} @blahwords; # I think hash lookup is faster than grep()
+
+my $samplesize = 7500; # How large a word sample we want
+my $samplewords = 500; # How many words to make
+my $seen = 0;
+main();
+
+#####################
+
+sub main
+{
+my %freqs;
+while(<STDIN>)
+	{
+	chomp;
+	my ($freq, $word) = split / /;
+	next if($word =~ /^\d+/);
+	next if(length($word) < 4);
+	next if($blah{$word});
+	$freqs{$word} = $freq;
+#	print "\t$word <= $freq\n";
+	$seen += $freq;
+	}
+my %gen;
+map {$gen{$_} = $freqs{$_}} (sort {$freqs{$b} <=> $freqs{$a}} keys %freqs)[0..$samplewords-1];
+
+my $sumsel = 0;
+map {$sumsel += $gen{$_}} keys %gen;
+
+my $samplesize_c = $samplesize;
+
+my %fin;
+
+foreach my $key (sort {$gen{$a} <=> $gen{$b}} keys %gen)
+	{ # Start at the bottom and move up
+	my $base_occur = $gen{$key} * $samplesize_c / $sumsel;
+	if($base_occur < 1)
+		{
+#		print "BOOST $key => 1 NOT $base_occur ($gen{$key})\n";
+		$samplesize_c -= (1 - $base_occur); # Attempt not to inflate samplesize by guaranteeing a minimal 1
+		$base_occur = 1;
+		}
+	else
+		{
+#		print "NOBOOST $key => $base_occur ($gen{$key})\n";
+		$samplesize_c += $base_occur - int($base_occur); # Also attempt not to deflate it. If we wanted to introduce complication, we'd try to round by percent except on the last word where we'd round to even it out.
+		$base_occur = int($base_occur);
+		}
+	$fin{$key} = $base_occur;
+	}
+
+
+foreach my $word (sort {$fin{$a} <=> $fin{$b}} keys %fin)
+	{
+#	print "$word => $fin{$word}\n";
+	print "$word " x $fin{$word};
+	}
+print "\n";
+}
+

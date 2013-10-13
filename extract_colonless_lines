@@ -1,0 +1,21 @@
+#!/usr/bin/perl
+
+# I sometimes rewrite shell into perl, and sometimes I forget to add the
+# semicolons for lines that I don't change too much. This will help me spot
+# such lines. 
+
+while(<>)
+	{
+	s/#.*$//; # Ignore comments
+	next if(/^\s*$/);
+	next if(/^\s*[}{]\s*$/); # Brackets on empty lines don't need semicolons
+	next if(/}\s*$/); # Lines ending in brackets are kosher too
+	next if(/^\s*foreach/); # Foreach starts a block...
+	next if(/^\s*if/); # starts a block...
+	next if(/^\s*elsif/); # starts a block..
+	next if(/^\s*else/); # starts a block..
+	next if(/^\s*sub/); # starts a block...
+
+	next if(/;\s*$/); # Yay! Good lines!
+	print $_;
+	}

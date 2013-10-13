@@ -1,0 +1,32 @@
+#!/usr/bin/perl -w
+
+my $tomedir = "/home/pgunn/.tome";
+my $tomesubdir = "2.3";
+my $tometar = "/home/pgunn/.tome/tomesave.tar";
+my $tometarbup = "/home/pgunn/.tome/tomesave.tar.2";
+
+main();
+########################
+
+sub main
+{
+if(! @ARGV) {die "Usage: wraptome load|save\n";}
+elsif($ARGV[0] eq 'load')
+	{
+	unlink("$tomedir/$tomesubdir/PLAYER.nte");
+	system("/bin/rm $tomedir/$tomesubdir/save/*");
+	chdir("/home/pgunn/.tome") || die "Failed to enter time dir\n";
+	system("tar xf $tometar");
+	print "Restore complete\n";
+	}
+elsif($ARGV[0] eq 'save')
+	{
+	chdir("/home/pgunn/.tome") || die "Failed to enter time dir\n";
+	system("tar cf $tometar $tomesubdir/PLAYER.nte $tomesubdir/save/");
+	print "Backup made\n";
+	}
+else
+	{die "Usage: wraptome load|save\n";}
+
+}
+

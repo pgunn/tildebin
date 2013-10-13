@@ -1,0 +1,17 @@
+#!/usr/bin/perl
+
+# Try a new modeline on VGA
+
+if(! @ARGV)
+	{
+	die "Usage: watrymode modename MODEDATA\n";
+	}
+my $modename = shift @ARGV;
+my $moderest = join(' ', @ARGV);
+
+print "Defining mode $modename as $moderest..\n";
+sleep(1);
+system("xrandr --newmode $modename $moderest");
+system("xrandr --addmode VGA1 $modename");
+system("xrandr --output VGA1 --mode $modename");
+

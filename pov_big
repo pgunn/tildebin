@@ -1,0 +1,3 @@
+#!/bin/sh
+
+povray +W1200 +H800 +Q11 +FN16 +A +a0.0 +am2 +r4 -d $*

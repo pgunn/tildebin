@@ -1,0 +1,102 @@
+#!/usr/bin/perl -w
+
+use strict;
+my $joinchar = ' ';
+main();
+
+###################
+# cut using perl's split rather than cut's single char
+#	NOTE: Because we allow splitting by regexen, we always join by spaces by default.
+# TODO: Add a mode to split by headers
+#	Support more of cut's options
+#	Do we really want to use perl's 0-based indexing, or should we correct to cut's 1-based?
+###################
+
+sub main
+{
+my ($splitter, $fieldspec) = handle_args(@ARGV);
+
+while(my $line = <STDIN>)
+	{
+	chomp $line;
+	my @parts = split(/$splitter/, $line);
+	spit_it_out($fieldspec, @parts);
+	}
+}
+
+sub spit_it_out
+{ # Not particularly proud of this part. Might need to redo it entirely.
+my ($fields, @parts) = @_;
+
+# Possible forms of $fields:
+# number
+# number-number
+# -number
+# number-
+# number,number,number
+if($fields =~ /^(\d+)$/)
+	{
+	print $parts[$1] . "\n";
+	}
+elsif($fields =~ /^(\d+)-(\d+)$/)
+	{
+	print @parts[$1..$2] . "\n";
+	}
+elsif($fields =~ /^-(\d+)$/)
+	{
+	print @parts[0..$1] . "\n";
+	}
+elsif($fields =~ /^(\d+)-$/)
+	{
+	print @parts[$1..$#parts] . "\n";
+	}
+elsif($fields =~ /^\d+,\d+/) # Note that we do not capture - we want to actually use split here.
+	{
+	my @partlist = split(',', $fields);
+#	eval("print join('$joinchar', \@parts[" . $fields . "]);");  # There's got to be a better way to do this...
+#	print "\n";
+	print join($joinchar, @parts[@partlist]) . "\n";
+#	print @parts[@partlist] . "\n";
+	}
+else
+	{die "Invalid field specifier [$fields]\n";}
+}
+
+sub handle_args
+{
+my @args = @_;
+my ($has_spec, $has_fields) = (0,0);
+my ($splitter, $fields);
+
+if(@args != 2)
+	{usage();}
+
+foreach my $arg (@args)
+	{
+	if($arg =~ /^-d/)
+		{
+		$arg =~ s/^-d//;
+		$arg =~ s/^"//; # Any beginning quote
+		$arg =~ s/"$//; # Any ending
+		$splitter = $arg;
+#		print "D: Accept splitter of [$splitter]\n";
+		$has_spec++;
+		}
+	elsif($arg =~ /^-f/)
+		{
+		$arg =~ s/^-f//;
+		$fields = $arg; # Gotta really parse the heck out of this later
+		$has_fields++;
+		}
+	}
+if( (! $has_fields) || (! $has_spec) )
+	{usage();}
+
+return ($splitter, $fields);
+}
+
+sub usage
+{
+die "Usage: pcut -dSPEC -fFIELDS\n";
+}
+

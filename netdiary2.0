@@ -1,0 +1,306 @@
+#!/usr/bin/perl -w
+
+# Netdiary, a script to manage progressive entries in a web diary
+$editor = 'gvim -f';
+$name = "Pat Gunn";
+$includefile = M_gethome() . "/.ndinclude"; # Customize this
+$diarydir = M_gethome() . "/netdiary";
+my @topush; # List of summary files to push to the site
+
+use POSIX;
+
+$nd_ver = "2.0";
+$threshold = 10; # If nonzero, how many messages should fit into each page
+main();
+
+
+####################################################################
+
+
+
+
+sub main
+{
+my $toedit;
+my $do_edit = 1;
+my $do_post = 1;
+my @args = @ARGV;
+while($_ = pop @args)
+	{
+	if( /-u/i) {$do_edit = 0;next;} # Only post (Upload)
+	if( /-n/i) {$do_post = 0;next;} # Only edit new entry (New)
+	if( /-h/i) {die "netdiary [-u][-n]\n\t-u upload only\n\t-n edit only\n";}
+	die "usage: netdiary [-u][-n]\n";
+	}
+if($do_edit)
+	{
+	$toedit = new_tfile(); # Create a new file, prepare for editing
+	system("$editor $toedit"); # And edit it. 
+	if( -z $toedit) 
+		{
+		unlink ($toedit);
+		die "Empty file!"; # Reject empty entries
+		}
+	}
+buildsummary();
+if($do_post) {postbuild();} # Do whatever the user wants with the summary
+}
+
+
+
+#### YOU WILL PROBABLY WANT TO CUSTOMIZE THIS FUNCTION
+sub postbuild
+{
+my $jstring = join " ", @topush;
+print `scp $jstring pgunn\@www.evilnet.net:~pgunn/public_html/diary/`;
+#foreach $file (@topush)
+#	{
+#print `ncftpput -u pgunn -p 0001539980 www.evilnet.net ~pgunn/public_html/diary $file` . "\n";
+#	}
+}
+#### YOU CUSTOMIZED THE ABOVE FUNCTION, RIGHT? RIGHT?!?!?!
+
+
+
+
+sub buildsummary
+	# Build the html file from all the entries
+{
+my $idx; # Index for for-loop
+
+opendir(SUMDIR, $diarydir);
+my @files = 			# The list of files is
+	sort {$a <=> $b} 	# A numerically sorted list
+	grep /^\d+$/i,		# We only want 'number' files
+	readdir(SUMDIR); 	# From all the files in the diary dir
+closedir(SUMDIR);
+$num_ofiles = ($threshold == 0)? 1 : POSIX::ceil( scalar(@files) / $threshold );
+# print "Calculated number of files as " . scalar(@files) . " / $threshold = $num_ofiles\n";
+
+# While we're not at the last file
+#	{
+#	build a summary$number file with increasing $number, telling it if
+#		there's another summary or the main summary in front of it
+#	}
+# Build the main summary. Might overlap with the last numbered summary.
+my $files_iter = 0;
+my $t_files_iter = 0;
+my $ofile_iter = 0;
+for(my $fv = 0; $fv < $threshold ; $fv++)
+	{push(@lfiles, $files[$fv]);}
+
+#my @lfiles = @files[0 .. $threshold];
+
+pos_update(0);
+sumfile("summary0");
+sum_childhead(0);
+
+while($ofile_iter < ($num_ofiles - 1)) # Not at the last file
+	{
+	while(scalar(@lfiles))
+		{ parsefile(pop @lfiles); }
+	#else need to change files
+		{
+		sum_tail();
+		close(SUM);
+		$ofile_iter++;
+		pos_update($ofile_iter);
+		sumfile("summary" . $ofile_iter);
+		sum_childhead($ofile_iter);
+		for(my $fv = $threshold * $ofile_iter; $fv < ($threshold*($ofile_iter+1)) ; $fv++)
+			{push(@lfiles, $files[$fv]);}
+	#	@lfiles = @files[($threshold * $ofile_iter) .. ($threshold * ($ofile_iter+1))]; # Assign the next batch
+		}
+	}
+
+pos_update($num_ofiles - 1);
+sumfile("summary");
+sum_head();
+$t_files_iter = (($num_ofiles==1) || (scalar(@files) < $threshold))? 0 : (scalar(@files) - $threshold);
+
+my @final_files_to_parse;
+while($t_files_iter < scalar(@files) )
+	{
+	unshift(@final_files_to_parse, $files[$t_files_iter++]);
+	}
+foreach my $ffp (@final_files_to_parse)
+	{
+	parsefile($ffp);
+	}
+sum_tail();
+close(SUM);
+}
+
+
+
+
+sub sumfile
+	# Create a new summary file, open it
+{
+my $sumname = shift;
+my $FN = "$diarydir/$sumname" . ".html";
+push(@topush, $FN); # add to list of things to push
+unlink($FN); # Clear it out if it exists
+if( -e $FN )    {die "Could not clear summary file $FN: $!\n";} # Permissions problem?
+open(SUM,">$FN") || die "Cannot open summary file $FN: $!\n"; # Permissions problem
+}
+
+
+
+sub sum_head
+	# Prints HTML header to filehandle <SUM>
+{
+print SUM <<EOS;
+<HEAD><TITLE>Net Diary</TITLE></HEAD>
+<BODY BGCOLOR="#AAACCC">
+<H3>This is the netdiary of $name</H3>
+It is managed with software written by Pat Gunn, 
+available at <A HREF="http://junior.apk.net/~qc">his webpage</A><br>
+</H3>
+EOS
+
+if( -e $includefile)
+	{
+	local $/;
+	open(NDI, $includefile);
+	my $nddata = <NDI>;
+	close(NDI);
+	print SUM $nddata;
+	}
+}
+
+sub sum_childhead
+	# Non-mainpage HTML header
+{
+my $page = shift;
+my $displaypage = $page + 1;
+print SUM <<EOSI;
+<HEAD><TITLE>Net Diary (Page $displaypage)</TITLE></HEAD>
+<BODY BGCOLOR="#AAACCC">
+<H3>Netdiary of $name, page $displaypage</H3>
+EOSI
+}
+
+sub sum_tail
+	# Prints footer to filehandle <SUM>
+{
+print SUM $postmagic;
+print SUM <<EOTA;
+<HR><HR><B>Generated with Netdiary $nd_ver</B></BODY></HTML>
+EOTA
+close(SUM);
+}
+
+
+
+sub parsefile
+	# Parses a netdiary entry, outputs to <SUM>
+{
+my $fn_toparse = shift; # Filename to parse
+my $entfile;
+
+if(! defined($fn_toparse) )
+	{
+	die "Asked to parse a nonexistant file in $diarydir\n";
+	}
+open(ENTFILE, "$diarydir/$fn_toparse") || die "Cannot open file $fn_toparse!\n";
+undef $/; # We want to parse it all as a single huge string
+$entfile = <ENTFILE>; # Swallow it
+$entfile =~ s/^[\n ]+//s; # Remove initial newlines
+$entfile =~ s/[\n ]+$//s; # and trailing newlines
+do_between($fn_toparse); # file-specific non-content between part
+if(is_private($entfile))
+	{print SUM "<B>Entry is Private</B>";}
+else
+	{print SUM "<PRE>$entfile</PRE>";}
+close(ENTFILE);
+}
+
+
+
+sub do_between
+	# Prints stuff that goes between entries, like time
+{
+my $efname = shift; # Filename argument, determines time
+my $datestr = niceformat($efname);
+print SUM <<EOB;
+
+<!-- --------------------------- -->
+<HR><FONT SIZE="1"><B>$datestr</B></FONT>
+EOB
+}
+
+
+sub pos_update
+	# Generates the needed HTML for position-dependent journal stuff
+	# It might be interesting, but it would complicate the code too much,
+	#   to display titles for entries in the next and previous page.
+{
+my $pindex = shift;
+
+if($pindex < 0) {die "Internal error in pos_update";}
+$postmagic = "";
+if($num_ofiles == 1) {return;} # Don't bother if this is the only file
+if($pindex > 0) # Setup the pre-link, if valid
+	{
+	$postmagic = 	"[<A HREF=\"" . # A link to
+			"summary" . 
+			(($pindex-1 == 1)? "" : $pindex-1) . # Handle position two
+			".html" . # next file entry
+			"\">Past</A>]"; 
+	}
+if($pindex < ($num_ofiles - 1)) # And the post-link, if valid
+	{
+	$postmagic .= 	"[<A HREF=\"" . # A link to
+			"summary" . ($pindex+1) . ".html" . # next file entry
+			"\">Future</A>]"; 
+	}
+}
+
+sub niceformat
+	# Nicely parses Unix time into a pretty string
+{
+my $ut = shift;
+my $rner = POSIX::ctime($ut);
+$rner =~ s/\n$//;
+return $rner;
+}
+
+############################################
+# File stuff grabbed from psmail
+############################################
+sub M_gethome
+{
+return ( (getpwuid($<))[7] );
+}
+
+sub new_tfile
+	# creates file netdiary/$FILE, where $FILE's name
+	# is determined by current unix time
+{
+my $FN = "$diarydir/" . time();
+if( -e $FN )
+	{
+	sleep(2); # Sleep so clock will increment
+	$FN = "$diarydir/" . time();
+	}
+if( -e $FN ) # This should never happen
+	{
+	die "Bailing because $FN already exists!\n";
+	}
+`touch $FN`;
+if(! POSIX::access($FN, &POSIX::W_OK) )
+	{
+	die "Cannot write to $FN!\n";
+	}
+return($FN);
+}
+
+sub is_private
+	# Passed the contents of a message, determines if it has the needed
+	# tokens that mark it as private
+{
+my $content = shift;
+if($content =~ /\nCONTENT: Private/){return 1;}
+else {return 0;}
+}

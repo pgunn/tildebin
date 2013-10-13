@@ -1,0 +1,3 @@
+#!/bin/sh
+
+touch /tmp/laptop_is_closed

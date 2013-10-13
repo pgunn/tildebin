@@ -1,0 +1,18 @@
+#!/usr/bin/perl -w
+
+# Lower caser
+
+foreach $file (@ARGV)
+	{
+	if(! (( -f $file) || (-d $file) ))
+		{
+		die "no file $file\n";
+		}
+	}
+
+foreach $file (@ARGV)
+	{
+	my $lcname = lc($file);
+	rename($file, $lcname);
+	}
+

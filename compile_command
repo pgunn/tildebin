@@ -1,0 +1,54 @@
+#!/usr/bin/perl -w
+
+use strict;
+my $use_exec = 1; # If 1, use execl (requires exact path), otherwise use system
+#my $extra = qq{setuid(0);seteuid(0);};
+my $extra = '';
+
+main();
+
+# compile_command - make a binary out of the given command. Suitable to
+#	chmod +s
+#	Note that all wildcards are expanded at compile-time, of course
+#########################
+
+sub main
+{
+my @args = @ARGV;
+my $fn = shift(@args);
+my ($execstring,$sysstring) = parse_args(@args);
+my $escript = <<EXECSTR;
+#include <unistd.h>
+
+int main(int argc, char** argv)
+{
+$extra
+return execl($execstring);
+}
+EXECSTR
+
+my $sscript = <<SYSSCRIPT;
+#include <unistd.h>
+
+int main(int argc, char** argv)
+{
+$extra
+return system("$sysstring");
+}
+SYSSCRIPT
+
+open(GCC, "|gcc -x c -o $fn -") || die "Failed to talk to GCC:$!\n";
+print GCC ($use_exec?$escript:$sscript);
+print ($use_exec?$escript:$sscript);
+close(GCC);
+#system('gcc', '-x', 'c', '-o', $fn, $script);
+}
+
+sub parse_args
+{ # Given args, build a sensible thing to pass to exec in C
+my ($cmd, @args) = @_;
+my $estring = join(',', qq{"$cmd", "$cmd"}, map{'"' . $_ . '"'} @args);
+my $sstring = join(' ', $cmd, @args);
+return ($estring, $sstring);
+}
+

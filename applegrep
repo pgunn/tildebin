@@ -1,0 +1,41 @@
+#!/usr/bin/perl -w
+
+# I built the initial list with this: http://www.coffer.com/mac_find/?string=apple
+main();
+#########################
+
+sub main
+{
+open(AMACS, "$ENV{HOME}/etc/applemacs.txt") || die "Failed to open sourcefile\n";
+my @macs;
+while(<AMACS>)
+	{
+	/^([0-9A-F]{6})/;
+	if(defined $1)
+		{push(@macs, $1);}
+	}
+my @toret;
+while(my $line = <>)
+	{
+	$line = regularise_inline($line);
+	if(defined $line)
+		{
+		if(grep {$line =~ /$_/} @macs)
+			{push(@toret, $line);}
+		}
+	}
+print '#' x 20; print "\n";
+print join("\n", @toret) . "\n";
+}
+
+sub regularise_inline($)
+{ # If the line has what looks like a MAC, convert it to uppercase and remove
+  # colons from it. Otherwise return undef
+my ($in) = @_;
+
+$in =~ tr/://d; # Will chop out other colons. I am okay with that.
+$in =~ s/([0-9A-Fa-f]{6})/\U$1\E/g;
+#print "Returning $in\n";
+return $in;
+}
+

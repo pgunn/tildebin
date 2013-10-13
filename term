@@ -1,0 +1,48 @@
+#!/usr/bin/perl
+
+my $termp = 3;
+my @arghv = @ARGV;
+# 0 = xterm -e command
+# 1 = Terminal -x command
+# 2 = gnome-terminal -x command
+
+chdir($ENV{HOME});
+if($termp == 0)
+	{
+	exec("xterm", @ARGV);
+	}
+elsif($termp == 1)
+	{
+	for($ai = 0; $ai < scalar(@ARGV); $ai++)
+		{
+		if($arghv[$ai] eq '-e')
+			{
+			$arghv[$ai] = '-x';
+			}
+		}
+	exec("Terminal", @arghv);
+	}
+elsif($termp == 2)
+	{
+	for($ai = 0; $ai < scalar(@ARGV); $ai++)
+		{
+		if($arghv[$ai] eq '-e')
+			{
+			$arghv[$ai] = '-x';
+			}
+		}
+	exec("gnome-terminal", "--disable-factory", @arghv);
+	}
+elsif($termp == 3)
+	{
+	for($ai = 0; $ai < scalar(@ARGV); $ai++)
+		{
+		if($arghv[$ai] eq '-e')
+			{
+			$arghv[$ai] = '-x';
+			}
+		}
+	exec("mate-terminal", "--disable-factory", @arghv);
+	}
+#exec xterm $*
+#exec Terminal $*

@@ -1,0 +1,4 @@
+#!/bin/sh
+
+echo "Recording to foo.wav, hit ^C when done."
+arecord -t wav -f cd foo.wav

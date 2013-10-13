@@ -1,0 +1,104 @@
+#!/usr/bin/perl -w
+
+my $diskused = 0;
+my $pause = 2;
+my @filelist;
+
+my $srcdir = qq{/home/media/music};
+my $targdir = qq{/mnt/flash/Internal storage/Music};
+use File::Copy;
+use File::Path;
+#use lib $ENV{HOME} . '/lib/perl';
+use lib '/home/pgunn/lib/perl';
+use Pgunn;
+main();
+
+###############################
+
+sub main
+{
+my %filelist = loaddata();
+my $size = 0;
+foreach my $sname (keys %filelist)
+	{$size += (-s $filelist{$sname})/1024;}
+
+print "Total size is $size kilobytes. Copy begins in $pause seconds\n";
+sleep($pause);
+
+foreach my $sname (sort keys %filelist)
+	{
+	my $cleaned = translate_down($sname);
+#	print "$cleaned => $filelist{$sname}\n";
+	if($cleaned eq $sname) # Just copy
+		{
+		schlepp($sname, $filelist{$sname}, "$targdir/$sname");
+		}
+	else
+		{
+		print "Corrected: $sname => $cleaned\n";
+		schlepp($cleaned, $filelist{$sname}, "$targdir/$cleaned");
+			# In theory we could then retag it to remove
+			# unicode things Android can't handle.
+			# TODO: Later. If ever.
+		}
+	}
+
+}
+
+sub schlepp
+{
+my($sname, $in, $out) = @_;
+if( (-f $out) && (! -z $out))
+	{print "Skipped [$out]: Exists\n";return;}
+
+print "CP\t [$in]\n\t\t=> [$out]\n";
+ensure_subdir_exists_for($sname, $targdir);
+copy($in, $out);
+}
+
+######
+
+sub loaddata
+{
+my %filelist;
+
+# Right now we fail if we're in the wrong dir or some DNE. Is that OK?
+my @misc_files		= read_linelist_from_file('.phonemusic-misc');
+my @musicdirs_entire	= read_linelist_from_file('.phonemusic-musicdirs');
+my @musicfiles_other	= read_linelist_from_file('.phonemusic-other');
+
+foreach my $song (@misc_files)
+	{
+	my $songfn = $srcdir . '/misc/' . $song;
+	if(! -f $songfn)
+		{die "Song [$songfn] does not exist\n";}
+	$filelist{"misc/$song"} = $songfn;
+	}
+
+foreach my $rsongdir (@musicdirs_entire)
+	{
+	my $songdir = $srcdir . '/' . $rsongdir;
+	if(! -d $songdir)
+		{die "Songdir [$songdir] does not exist\n";}
+	# Now, we need to expand this to a list of individual files in the
+	# dir, so any filename corrections can be handled at the filelist
+	# level directly rather than requiring deep parsing.
+	my @filelist = dir_deeplist($songdir);
+	foreach my $file (@filelist)
+		{
+		my $shortfile = $file;
+		$shortfile =~ s/^$srcdir\///; # Ensure it's trimmed
+		$filelist{$shortfile} = $file;
+		}
+	}
+
+foreach my $song (@musicfiles_other)
+	{
+	my $songfn = $srcdir . '/' . $song;
+	if(! -f $songfn)
+		{die "Song [$songfn] does not exist\n";}
+	$filelist{$song} = $songfn;
+	}
+return %filelist;
+}
+

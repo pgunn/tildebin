@@ -1,0 +1,58 @@
+#!/usr/bin/perl -w
+
+use strict;
+my $iface = 'wlan0';
+
+main();
+
+######################
+
+sub main
+{
+my $results; my $failed=0;
+for(my $tries=0;$tries < 5; $tries++)
+	{
+	$results = qx/iwlist $iface scan/;
+	$failed = $? || ! defined($results);
+	last unless($failed);
+	}
+if($failed)
+	{die "Failure in iwlist!\n";}
+my %ifaces = parse_iwlist($results);
+print join("\t", qw/Sec Signal ESSID/) . "\n";
+print '-' x 20 . "\n";
+foreach my $iface (keys %ifaces)
+	{ # Displaying it in this order means I don't need to worry about fixing indents
+	print join("\t", $ifaces{$iface}{pubpriv}, $ifaces{$iface}{str}, $iface) . "\n";
+	}
+}
+
+sub parse_iwlist
+{
+my ($in) = @_;
+my %ret;
+foreach my $celldata (split(/^\s+Cell/ms, $in))
+	{
+	next if($celldata =~ /Scan completed/); # Skip the bits before the first cell
+	my ($cellname) = ($celldata =~ /ESSID:"(.*)"/);
+	next if($cellname eq ''); # Not much point in listing these
+	my ($pubpriv) = ($celldata =~ /Encryption key:(.*)/);
+	my ($str) = ($celldata =~ /Quality=([^ ]*)\//); # XXX You may want to customise this for the
+							# kinds of data your card(s) return.
+	# Now that we've parsed it out, we want to fold the possibility of multiple APs with the
+	# same ESSID into the most sensible/relevant single line of info. This means possibly
+	# "correcting" previous entries in the %ret table.
+	if(defined $ret{$cellname})
+		{ # Possibily fixup existing entry
+		if($str > $ret{$cellname}{str}) {$ret{$cellname}{str} = $str};
+		if($pubpriv ne $ret{$cellname}{pubpriv}) {$ret{$cellname}{pubpriv} = 'OMGWTF';} # This *really* would be weird.
+		}
+	else	# New entry
+		{
+		$ret{$cellname}{pubpriv} = $pubpriv;
+		$ret{$cellname}{str} = $str;
+		}
+	}
+return %ret;
+}
+

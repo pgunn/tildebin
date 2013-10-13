@@ -1,0 +1,19 @@
+#!/usr/bin/perl -w
+
+main();
+
+#########
+
+sub main
+{
+my $zeit = handle_args(@ARGV);
+print `date -d '1970-01-01 UTC $zeit seconds' +"%Y-%m-%d %T %z"`
+}
+
+sub handle_args(@)
+{
+my @args = @_;
+if(@args != 1) {die "Usage: epoch_to_local 115793550\n";}
+return $args[0];
+}
+

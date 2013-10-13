@@ -1,0 +1,38 @@
+#!/usr/bin/perl -w
+
+# /Developer/Tools/SetFile -a l <file>
+
+handle_dir();
+
+
+sub handle_dir
+{
+opendir(HERE, '.') || die "Failed to open dir $dir:$!\n";
+my @files = 
+	grep !/^\.+$/,
+	readdir(HERE);
+closedir(HERE);
+my @subdir;
+foreach my $file (@files)
+	{
+	if( -f $file )
+		{
+#		print "Handle file $file\n";
+		`/Developer/Tools/SetFile -a l "$file"`;
+		}
+	elsif (-d $file)
+		{
+#		print "Remember as dir $file\n";
+		push(@subdir, $file);
+		}
+	}
+foreach my $dir (@subdir)
+	{
+#	my $here = getcwd();
+	chdir($dir);
+	print "Handle Dir $dir\n";
+	handle_dir();
+#	chdir($here);
+	chdir('..');
+	}
+}

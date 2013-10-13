@@ -1,0 +1,19 @@
+#!/usr/bin/perl -w
+
+my $enable=1; # 1 or 0
+use strict;
+main();
+############
+
+sub main
+{
+my @kbid = grep{/AT Translated Set 2 keyboard/} `xinput --list`;
+if(! @kbid) {die "Failed to find keyboard\n";}
+map 	{
+	/id=(\d+)/;
+	my $devid=$1;
+	print "Found device $devid\n";
+	`xinput set-int-prop $devid "Device Enabled" 8 $enable`;
+	} @kbid;
+}
+

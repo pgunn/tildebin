@@ -1,0 +1,5 @@
+#!/bin/bash
+
+echo "Enabling power saving mode"
+echo 1 > /proc/sys/vm/laptop_mode
+echo 7 > /proc/acpi/processor/CPU0/throttling

@@ -1,0 +1,13 @@
+#!/usr/bin/perl -w
+
+if(@ARGV != 1)
+	{die "Usage: prefixall prefix\n";}
+opendir(HERE, ".");
+@files = grep !/^\./,
+	readdir(HERE);
+closedir(HERE);
+foreach $file (@files)
+	{
+	system("/bin/mv",  "-i", $file, $ARGV[0] . $file);
+	}
+

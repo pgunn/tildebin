@@ -1,0 +1,9 @@
+#!/usr/bin/perl
+
+print <<EONOTES;
+
+/etc/X11/xinit/xinput.d/none.conf
+	GTK_IM_MODULE=xim
+
+
+EONOTES

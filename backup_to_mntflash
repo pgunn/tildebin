@@ -1,0 +1,5 @@
+#!/bin/sh
+
+# Backup homedirs to flash directory
+
+cd /home && tar cf - --exclude='*.mp4' --exclude='*irtualBo*' --exclude='*drowtales-*' --exclude='*Cache*' * | (cd /mnt/flash && tar xvf -)

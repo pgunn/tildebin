@@ -1,0 +1,101 @@
+#!/usr/bin/perl -w
+
+$input = '/home/pgunn/mediafiles';
+$output = '/var/www/media/gallery';
+$robotspath = '/var/www/media/';
+$xmltmp = "$input/gallery.xml";
+@suffices = qw/jpg jpeg png gif/;
+
+$dospider = 1;
+$donuke = 1;
+$dorobots = 1;
+########################
+
+
+
+if($donuke)
+	{system("/bin/rm -rf $output");}
+
+if($dorobots)
+	{
+	open(ROBOTS, ">$robotspath/robots.txt") || die "Could not create robots.txt:$!\n";
+	print ROBOTS "User-agent: *\nDisallow: /\n";
+	close(ROBOTS);
+	}
+
+opendir(INDIR, $input) || die "No input dir\n";
+my @dirs = map{s/\/$//;$_} # Remove trailing slash
+		grep {$_ !~ /^\.\.?$/} # Exclude directories starting with .
+		grep {-d "$input/$_"} readdir(INDIR); # Get all directories
+closedir(INDIR);
+my %dirinfo;
+foreach my $dir (@dirs)
+	{
+	print "Parsing directory [$dir]\n";
+	opendir(DIR, "$input/$dir") || die "Could not open subdir $dir:$!\n";
+	my @files = grep {is_kosher_file("$input/$dir/$_")}
+			map{s/\/$//;$_} # Remove trailing slash
+				readdir(DIR);
+	closedir(DIR);
+	if(@files > 0)
+		{
+		$dirinfo{$dir}{name} = cleanup_name($dir);
+		$dirinfo{$dir}{title} = cleanup_name_for_title($dir);
+		$dirinfo{$dir}{path} = "$input/$dir"; # Or should it be input/dir?
+		}
+	foreach my $file (@files)
+		{$dirinfo{$dir}{files}{$file}=1;}
+	}
+open(XML, ">$xmltmp") || die "Failed to write XML file:$!\n";
+print XML <<EOXHEAD;
+<group>
+	<title>Dachte.org: Image Gallery</title>
+	<shorttitle>Dachte gallery</shorttitle>
+	<link><a href="http://dachte.org">Dachte.org</a></link>
+	
+EOXHEAD
+my @thelist = grep {!/\d+/} keys %dirinfo;
+push(@thelist, sort {($a =~ /(\d+)/)[0]  <=> ($b =~ /(\d+)/)[0] } grep{ /\d+/} keys %dirinfo);
+foreach my $dir (@thelist)  # (sort {($a =~ /(\d+)/)[0] <=> ($b =~ /(\d+)/)[0] || $a cmp $b} keys %dirinfo)
+	{
+	print XML "\t<group name=\"$dirinfo{$dir}{name}\">\n";
+	print XML "\t<title>$dirinfo{$dir}{title}</title>\n";
+	foreach my $file (sort keys %{$dirinfo{$dir}{files}})
+		{
+		print XML "\t\t<image name=\"$dirinfo{$dir}{path}/$file\" \/>\n"
+		}
+	print XML "\t</group>\n";
+	}
+print XML "</group>\n\n";
+close(XML);
+
+if($dospider)
+	{
+	system("spider --file $xmltmp --filePath $output --inputImagePath $input --parentUrl http://media.dachte.org");
+	}
+
+sub is_kosher_file
+{
+if(! -f $_[0]){return 0;}
+if(grep{ $_[0] =~ /$_$/} @suffices) {return 1;}
+return 0;
+}
+
+sub cleanup_name
+{
+my ($in_name) = @_;
+$in_name =~ s/^.*\///; # Remove any path parts
+#$in_name =~ s/^\d{3,}_//; # Remove any long strings at the beginning, like my date parts
+$in_name = join('_', map{ucfirst($_)} split(/_/, $in_name)); # underscores to spaces, uppercase every word
+return $in_name;
+}
+
+sub cleanup_name_for_title
+{
+my ($in_name) = @_;
+$in_name =~ s/^.*\///; # Remove any path parts
+$in_name =~ s/^\d{3,}_//; # Remove any long number strings at the beginning, like my date parts
+$in_name = join(' ', map{ucfirst($_)} split(/_/, $in_name)); # underscores to spaces, uppercase every word
+return $in_name;
+}
+

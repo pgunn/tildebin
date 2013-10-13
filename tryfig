@@ -1,0 +1,5 @@
+#!/bin/sh
+
+rm $1.fig
+xfiggify $1.png $1.fig
+xfig $1.fig

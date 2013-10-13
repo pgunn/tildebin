@@ -1,0 +1,10 @@
+#!/usr/bin/perl -w
+
+# Pulls backups from remote hosts to the local backup dir
+
+@hosts = qw{dachte.org};
+chdir("/media/backup/auto");
+foreach $host (@hosts)
+	{
+	system("scp pgunn\@$host:/backup/* .");
+	}

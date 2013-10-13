@@ -1,0 +1,24 @@
+#!/usr/bin/perl -w
+use File::Copy;
+my $doit = 1; # Set to 0 if you just want to see what'd happen.
+
+if(! @ARGV > 2)
+	{die "Usage: transrename pattern files...\n";}
+my @argvc = @ARGV;
+my $code = shift(@argvc);
+print "\n";
+foreach (@argvc)
+	{
+	my $old = $_;
+	eval $code;
+	if($old ne $_)
+		{
+		print " $old => $_\n";
+#		system("/bin/mv", '-i', $old,  $_);
+		if(-e $_)
+			{die "Target file [$_] exists, will not overwrite\n";}
+
+		if($doit)
+			{move($old, $_);}
+		}
+	}

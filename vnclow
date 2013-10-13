@@ -1,0 +1,4 @@
+#!/bin/sh
+
+exec vncviewer -AutoSelect=0 -LowcolourLevel 1 -UseLocalCursor $*
+

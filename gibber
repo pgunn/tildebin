@@ -1,0 +1,3 @@
+#!/bin/sh
+
+/usr/libexec/xscreensaver/phosphor -scale 2 -program xscreensaver-text --url http://www.livejournal.com/stats/latest-rss.bml

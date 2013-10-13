@@ -1,0 +1,65 @@
+#!/usr/bin/perl -w
+
+my $alpha = '.';
+my $beta = '-';
+
+my %table =
+	(
+	ab	=> 'a',
+	baa	=> 'b',
+	baba	=> 'c',
+	baa	=> 'd',
+	a	=> 'e',
+	aaba	=> 'f',
+	bba	=> 'g'
+	aaaa	=> 'h'
+	aa	=> 'i',
+	abbb	=> 'j',
+	bab	=> 'k',
+	abaa	=> 'l',
+	bb	=> 'm',
+	ba	=> 'n',
+	bbb	=> 'o',
+	abba	=> 'p',
+	bbab	=> 'q',
+	aba	=> 'r',
+	aaa	=> 's',
+	b	=> 't',
+	aab	=> 'u',
+	aaab	=> 'v',
+	abb	=> 'w',
+	baab	=> 'x',
+	babb	=> 'y',
+	bbaa	=> 'z',
+	bbbbb	=> 0,
+	abbbb	=> 1,
+	aabbb	=> 2,
+	aaabb	=> 3,
+	aaaab	=> 4,
+	aaaaa	=> 5,
+	baaaa	=> 6,
+	bbaaa	=> 7,
+	bbbaa	=> 8,
+	bbbba	=> 9,
+	ababab	=> '.',
+	bbaabb	=> ',',
+	aabbaa	=> '?'
+	);
+
+while(<>)
+	{
+	tr/$alpha/a/;
+	tr/$beta/b/;
+	my @words = split(/\s+//, $_);
+	foreach my $word (@words)
+		{
+		if(my $trans = $table{$word})
+			{
+			print $trans . ' ';
+			}
+		else
+			{
+			print "$_ ";
+			}
+		}
+	}

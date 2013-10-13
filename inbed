@@ -1,0 +1,4 @@
+#! /bin/bash
+
+
+echo `echo $* | cut -d- -f1 ` ...in bed.

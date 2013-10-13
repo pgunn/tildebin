@@ -1,0 +1,10 @@
+#!/usr/bin/perl -w
+
+use URI::Escape;
+
+while(<>)
+{
+print uri_unescape($_);
+print "\nDone!\n";
+}
+

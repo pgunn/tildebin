@@ -1,0 +1,4 @@
+#!/bin/bash
+# For temporary use until my laptop's video driver can run in native mode.
+
+mplayer -zoom -monitoraspect 16/9 $*

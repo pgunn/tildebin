@@ -1,0 +1,18 @@
+#!/usr/bin/perl -w
+
+use Net::HTTP;
+our $version = "1.2";
+our $site = 'blog.dachte.org';
+if(@ARGV > 0)
+	{
+	$extramsg = join('_', @ARGV);
+	}
+our $logmsg_start = "-------------HERE";
+our $logmsg_end = "--------------";
+our $logmsg_mid = "";
+if(defined $extramsg) {$logmsg_mid = "[$extramsg]";}
+our $logmsg = $logmsg_start . $logmsg_mid . $logmsg_end;
+
+my $s = Net::HTTP->new(Host=>$site) || die $@;
+$s->write_request(GET => $logmsg, 'User-Agent' => "markblog/$version");
+

@@ -1,0 +1,266 @@
+#!/usr/bin/perl -w
+
+use strict;
+use warnings FATAL => 'all';
+use Getopt::Std;
+use File::LibMagic;
+
+my %lang_parser = 	(
+			perl	=> \&plparser,
+			python	=> \&pyparser,
+			c	=> \&cparser
+			);
+
+main();
+
+#################
+# fungrep - function-aware grep
+#
+#	Uses regexes to find matching (or non-matching) lines in sourcecode.
+#	Does some ad-hoc attempts to be syntax-aware for a few programming
+#	languages; won't parse non-code.
+# functionname():[local_line_number/global_line_number]: LINE
+# Everything's on a best-effort basis.
+# Note that PATTERN can be either a grep-style pattern or a perl regex.
+# Perl regexen, for purposes of this program, are delimited with //
+
+sub main
+{
+my %cfg = handle_args();
+my %traversed; # Stores files we've visited so far
+while(my $tovisit = pop(@{$cfg{files}}))
+	{
+	next if(defined $traversed{$tovisit}); # We've seen this file before, so skip this run
+	$traversed{$tovisit} = 1; # Remember we've visited this file
+	grep_file($tovisit, \%cfg); # Note that with the "-p" or "-P" options, this may grow the list of files to parse
+	}
+}
+
+sub grep_file($$)
+{	# Performs a search of the named file with the parameters given in cfg. May add files to the files subsection
+my ($tovisit, $cfg) = @_;
+
+my $plang = 'text'; # Default. May never have a handler for it?
+if($$cfg{e})
+	{$plang = figure_language($tovisit, 'ext');}
+elsif($$cfg{e})
+	{$plang = figure_language($tovisit, 'content');}
+else
+	{$plang = figure_language($tovisit, 'any');}
+
+print "I would visit $tovisit which is of filetype $plang\n";
+if(is_valid_language($plang))
+	{
+	&{$lang_parser{$plang}}($tovisit, $cfg); # Invoke the relevant subroutine
+	}
+
+# 1) Is the file code in a language we know? Test based on $$cfg{e} or $$cfg{E} and maybe disqualify
+# 2) Step through file with a stateful parser, pull comment and non-comment parts apart if a C or c directive are present,
+#	and search whatever's relevant using the supplied regex. Also, for the non-comment parts, if there's a p or P directive,
+#	save any appropriately referenced files in the file list, provided we can find them
+}
+
+#####################
+# Ok, the parsers. Sigh.
+#
+# The general theory behind these is that:
+#	If the buffer is empty:
+#		Read a line and cut the comments from the code, saving both halves. Perform an initial
+#		match-check on the line to see if it's worth investigating further.
+#
+#		For later expansion: if we have deep-parsing-required parsing, deep-parse. Otherwise only do deeper
+#		parsing if we have a match
+#		
+#	If called for and if the comment buffer is not empty, search the comments
+#	If we're either asked to search code or step across file boundaries:
+#		Pull a parse-unit from the buffer, pulling in any new lines (and handling their comments) if
+#			this is the last line and a continued parse-unit (remember to handle line numbers correctly!)
+#	Try pattern matching on the parse-unit (note that some kinds of patterns that span parse-units may not be detected)
+#	Manipulate parser state appropriately for the parse-unit, then move on
+#
+# Things we're not trying to do:
+#	Follow clever/sick things people can do with preprocessors and similar tools
+#	Implement a perfect parser for any of these languages - Best-effort is good enough.
+#		I have little doubt that people who use weirder features than I do in these languages
+#		will be able to extend my tool to handle their use-cases.
+#
+# Or would it be more efficient to do a two-pass parse, first noting deps, numbering lines, noting functions they include, and
+# then only if/when we see a march should we parse the file more carefully to figure out the file structure?
+# This might save a lot of effort, but it also might rule out more logical (rather than struct) searches, like
+#	VARNAME= or FUNCTIONNAME=
+
+sub plparser($$)
+{
+my ($file, $cfg) = @_;
+
+print "plparser($file, cfg) called\n";
+my $searchstring	= $$cfg{match};
+my $searchstyle		= $$cfg{regstyle};
+print "I would search for $searchstyle: $searchstring\n";
+}
+
+sub pyparser($$)
+{
+my ($file, $cfg) = @_;
+print "pyparser($file, cfg) called\n";
+
+}
+
+sub cparser($$)
+{
+my ($file, $cfg) = @_;
+print "cparser($file, cfg) called\n";
+}
+
+#####################
+# Language detection stuff
+
+sub figure_language($$) # returns string - What language does it detect
+{
+my ($fn, $meth) = @_;
+
+if($meth eq 'ext')
+	{
+	return filename_figure_language($fn);
+	}
+elsif($meth eq 'content')
+	{
+	return signature_figure_language($fn);
+	}
+elsif($meth eq 'any')
+	{
+	my $lang = signature_figure_language($fn);
+	if($lang eq 'unknown')
+		{return filename_figure_language($fn);}
+	else	{return $lang;}
+	}
+else
+	{die("INTERNAL ERROR in figure_language(): Invalid method [$meth]\n");}
+
+}
+
+sub filename_figure_language($) # Returns string - what language does it detect
+{
+my ($fn) = @_;
+$fn =~ s/^.*\.//; # Remove everything up to the extension
+return "perl" if( ($fn eq 'pl') || ($fn eq 'pm') || ($fn eq 'perl'));
+return "python" if( ($fn eq 'py') || ($fn eq 'pm') || ($fn eq 'perl'));
+return "c" if( ($fn eq 'c') || ($fn eq 'h') || ($fn eq 'cpp') || ($fn eq 'cxx') || ($fn eq 'hxx'));
+return "unknown";
+}
+
+sub signature_figure_language($) # Returns string - what language does it detect
+{
+my ($fn) = @_;
+
+my $flm = File::LibMagic->new();
+my $mimetype = $flm->checktype_filename($fn);
+return("perl") if($mimetype =~ /text\/x-perl/);
+return("python") if($mimetype =~ /text\/x-python/);
+return("c") if($mimetype =~ /text\/x-c/);
+return "unknown";
+}
+
+sub is_valid_language($) # Returns boolean
+{
+my ($lang) = @_;
+
+if(defined $lang_parser{$lang})
+	{return 1;}
+return 0;
+}
+
+#####################
+# File lists
+
+sub build_naive_filelist($@) # returns list
+{ 	# Take a list and a flag deciding whether to recurse or not
+	# and return a proper list of files we're going to dig through
+my ($do_recurse, @list) = @_;
+my @ret;
+
+foreach my $direntry (@list)
+	{
+	if(-f $direntry)
+		{push(@ret, $direntry);}
+	elsif(-d $direntry)
+		{
+		if($do_recurse)
+			{
+			recurse_finish_filelist(\@ret, $direntry);
+			}
+		else	{print STDERR "Skipping directory [$direntry]\n";}
+		}
+	}
+return @ret;
+}
+
+sub recurse_finish_filelist($$); # Prototype
+sub recurse_finish_filelist($$)
+{
+my ($report, $path) = @_;
+
+opendir(TOREAD, $path) || die "Could not open [$path]:$!\n";
+my @files =	grep {!/^\./} # Avoid ., .., and dotfiles
+		readdir(TOREAD);
+closedir(TOREAD);
+
+foreach my $file (@files)
+	{
+	if(-f "$path/$file")
+		{push(@{$report}, "$path/$file");}
+	elsif(-d "$path/$file")
+		{recurse_finish_filelist($report, "$path/$file");}
+	}
+}
+
+
+#####################
+# Argument passing
+sub handle_args
+{
+my %args;
+if(! getopts('tirCceEpP', \%args))
+	{usage();}
+
+while(@ARGV) # Chew all the initial arguments off
+	{
+	if($ARGV[0] =~ /^-/)
+		{shift(@ARGV);}
+	else	{last;}
+	}
+if(@ARGV < 2)
+	{usage();}
+#print "Args parsed down to: " . join(':', @ARGV) . "\n";
+
+if($ARGV[0] =~ /^\//)
+	{$args{regstyle} = 'perl';}
+else	{$args{regstyle} = 'grep';}
+$args{match} = shift(@ARGV);
+
+my @flist =	map {s/\/$//;$_;} # Remove trailing slashes
+		@ARGV; # Save the rest of the arguments as files to parse
+
+#print join("\n", @flist);
+@{$args{files}} = build_naive_filelist($args{r}, @flist); # Recurse it out
+
+#print "Files to parse:\n";
+#print join("\n", map{"[$_]"} @{$args{files}});
+#print "\n";
+return %args;
+}
+
+sub usage()
+{
+die "Usage: fungrep [OPTIONS] PATTERN [FILES]\n"
+.	"Options:\n"
+.	"\t-v - Invert matching\n"
+.	"\t-i - Case insensitive\n"
+.	"\t-r - Recurse down directories\n"
+.	"\t-C - Don't match inside comments\n"
+.	"\t-c - Only match inside comments\n"
+.	"\t-e - Use only file extensions to figure out what's code\n"
+.	"\t-E - Use only content analysis to figure out what's code\n"
+.	"\t-p - Attempt to follow dependencies\n"
+.	"\t-P - Attempt to follow dependencies into non-projectdirs\n";
+}

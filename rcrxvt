@@ -1,0 +1,18 @@
+#!/usr/bin/perl -w
+
+main();
+
+sub main
+{
+my @args = @ARGV;
+$c1 = get_colour();
+$c2 = get_colour();
+$c3 = get_colour();
+exec("rxvt", "-bg", '#' . "$c1$c2$c3", @args);
+}
+
+sub get_colour(;)
+{
+return sprintf("%02d", int(rand(15)));
+}
+

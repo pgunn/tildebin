@@ -1,0 +1,5 @@
+#!/bin/sh
+
+#iptables -L INPUT $*
+iptables -L INPUT -n -v | grep DROP | sort -n -k 8
+

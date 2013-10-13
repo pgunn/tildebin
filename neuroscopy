@@ -1,0 +1,200 @@
+#!/usr/bin/perl -w
+
+# The neuros cannot handle unicode filenames, and handles badly unicode
+# tags for files. Neuroscopy intelligently copies files from my linux
+# box to my neuros, transliterating via tables I maintain filenames and
+# tag info into plain ascii. 
+#
+# Note: Unicode is a bit messy in Perl. 
+# Note also: NEVER reimport data from neuroscopy targets. This program is a
+#	messy, hack that chops out good data to save the poor neuros's sanity.
+#	You can always dumb something down, but in this case, reconstructing it
+#	from already dumbed-down data is not possible.
+# Will not overwrite existing files, similarly will not delete files missing
+# 	in the source dir. 
+
+use utf8;
+use encoding 'utf8';
+use File::Copy;
+
+main();
+###################################
+
+sub main
+{
+my %cfg = handle_args(@ARGV);
+print "Syncing $cfg{in} to neuros mounted on $cfg{out}\n";
+$cfg{targ} = $cfg{out} . "/music";
+if(! -d $cfg{targ})
+	{ mkdir $cfg{targ}; }
+
+handle_dir($cfg{in},$cfg{in},$cfg{targ}); # start this baby out
+}
+
+sub handle_dir($$$)
+{
+my ($indir, $incleandir, $targdir) = @_;
+print "D: handle_dir($indir,$incleandir,$targdir)\n";
+opendir(IN, $indir) || die "Could not open input dir [$indir]\n";
+my @entries = grep (!/^\.*$/, readdir(IN));
+closedir(IN);
+# print "D:handle_dir!readdir(" . join(',', @entries) . ")\n";
+my @files = grep { -f $indir . '/' . $_ } @entries;
+my @dirs = grep { -d $indir . '/' . $_ } @entries;
+#print "D:$indir: " . join(' ', @files) . "\n";
+foreach my $file (@files)
+	{
+	next if( ($file !~ /\.mp3$/i) && ($file !~ /\.ogg/i) );
+	utf8::upgrade($file);
+#	print "D:handle_dir!file_handler($file)\n";
+	my $cleanfn = fix_fn($file);
+	if(! fn_kosher($cleanfn))
+		{
+		die "Failed to make [$cleanfn] kosher! Call a Rabbi!\n";
+		}
+	if(-f $targdir . '/' . $cleanfn) # skip existing files
+		{
+		print "Exists: $targdir/$cleanfn\n";
+		next;
+		}
+	copy($indir . '/' . $file, $targdir . '/' . $cleanfn);
+	if(($cleanfn ne $file) || ($indir ne $incleandir) )
+		{ # Retag
+		print "Retag: ($cleanfn != $file) or ($indir != $incleandir)\n";
+		if($file =~ /\.mp3$/i)
+			{
+			my $hard = 0;
+			my $specdir = $targdir;
+			$specdir =~ s/.*\///; # Chop off early path part
+			print "D: parse $targdir to $specdir\n";
+			$specdir =~ m{([^-]+)\-([^-]+)$};
+			if(! defined $1) {$hard = 1; warn "Hard to parse/retag $targdir\n";}
+			if(! defined $2) {$hard = 1; warn "Hard to parse/retag $targdir\n";}
+			my $artist;
+			my $album;
+			if($hard)
+				{ # try to make this more clever later
+				$artist = 'UNKNOWN';
+				$album = 'misc';
+				}
+			else
+				{
+				$artist = fix_fn($1); # My naming conventions for dirs: madonna-latest_album
+				$album = fix_fn($2);
+				}
+			my $earlytitle = $cleanfn;
+			$earlytitle =~ s/\.mp3//i;
+			my @tnparts = split('_', $earlytitle);
+			map {$_ = ucfirst($_);} @tnparts;
+			my $trackname = join(' ', @tnparts);
+			system('id3v2', '-D', $targdir . '/' . $cleanfn);
+#			system('id3v2', '-a', ucfirst($artist), '-A', $album, '-t', $trackname, $targdir . '/' . $cleanfn);
+			system('wrapid3', ucfirst($artist), $album, $targdir . '/' . $cleanfn);
+			}
+		elsif($file =~ /\.ogg$/i)
+			{
+			my $hard = 0;
+			my $specdir = $targdir;
+			$specdir =~ s/.*\///; # Chop off early path part
+			print "D: parse $targdir to $specdir\n";
+			$specdir =~ m{([^-]+)\-([^-]+)$};
+			if(! defined $1) {$hard = 1; warn "Hard to parse/retag $targdir\n";}
+			if(! defined $2) {$hard = 1; warn "Hard to parse/retag $targdir\n";}
+			my $artist;
+			my $album;
+			if($hard)
+				{ # try to make this more clever later
+				$artist = 'UNKNOWN';
+				$album = 'misc';
+				}
+			else
+				{
+				$artist = fix_fn($1); # My naming conventions for dirs: madonna-latest_album
+				$album = fix_fn($2);
+				}
+			my $earlytitle = $cleanfn;
+			$earlytitle =~ s/\.ogg//i;
+			my @tnparts = split('_', $earlytitle);
+			map {$_ = ucfirst($_);} @tnparts;
+			my $trackname = join(' ', @tnparts);
+			system('wrapid3', ucfirst($artist), $album, $targdir . '/' . $cleanfn);
+
+			}
+		else
+			{ # We don't know how to handle anything else right now.
+
+			}
+		}
+	}
+foreach my $dir (@dirs)
+	{
+	utf8::upgrade($dir); # Don't ask. 
+	print "D:handle_dir!file_handler($dir)\n";
+	my $cleandir = fix_fn($dir);
+	if(! fn_kosher($cleandir))
+		{
+		die "Failed to make [$cleandir] kosher! Call a Rabbi!\n";
+		}
+	my $targfulldir = $targdir . '/' . $cleandir;
+	if(! -d $targfulldir)
+		{
+		mkdir($targdir . '/' . $cleandir) || die "Could not make target dir $targfulldir:$!\n";
+		}
+	handle_dir($indir . '/' . $dir, $incleandir . '/' . $cleandir, $targfulldir);
+	}
+}
+
+sub handle_args(@)
+{
+my @args = @_;
+my %returner;
+if(@args != 2)
+	{usage();}
+$returner{in} = $args[0];
+$returner{out} = $args[1];
+if(! -d $returner{in})
+	{die "Input dir must be a directory\n";}
+if(! -d $returner{out})
+	{die "Neuros mount point must exist\n";}
+return %returner;
+}
+
+sub usage()
+{
+die "Usage: neuroscopy sourcedir neurosmnt\n";
+}
+
+sub fn_kosher($)
+{
+my ($fn) = @_;
+$fn =~ /^([-A-Za-z0-9_.]+)$/;
+if($1) {return 1;}
+else
+	{
+	$fn =~ tr/-A-Za-z0-9_.//d;
+	print "D:fn_kosher thumbs down on [$fn]\n";
+	}
+return 0;
+}
+
+sub fix_fn($)
+{ # Given a filename, return an ASCII7 kosherized version. Also used for retagging.
+my ($fn) = @_;
+#print "\tD:fix_fn given $fn\n";
+$fn =~ tr	{åáäëïöüÿÄËÏÖÜŸßсплиноsтаемsязiвыюдцрхбгукйэЌе́éñ}
+		{aaaeiouyAEIOUYBsplinostaemsyziviydcrcbgukizkeen}; # single character "lookalikes"
+$fn =~ tr/'/_/; # Punctuation
+$fn =~ tr/ь')(//d; # No english equivalents or characters that shouldn't be in there anyway
+$fn =~ s/ひ/hi/g;
+$fn =~ s/い/i/g;
+$fn =~ s/ら/ra/g;
+$fn =~ s/ぎ/gi/g;
+
+# The following does not work. I don't know why.
+# $fn =~ s/ß/ss/g;
+
+
+#print "\tD:fix_fn returning $fn\n";
+return $fn;
+}
+

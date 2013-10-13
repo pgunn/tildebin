@@ -1,0 +1,8 @@
+#!/bin/sh
+
+. ~pgunn/bin/xglue
+sleep 1
+xrandr --output eDP-0 --off
+sleep 2
+xrandr --output eDP-0 --auto
+

@@ -1,0 +1,42 @@
+#!/usr/bin/perl
+
+my $sdir = q{/home/pgunn/pound};
+
+main();
+
+###############
+
+sub main
+{
+opendir(SRC, $sdir) || die "Failed to open sourcedir: $!\n";
+my @files = grep(/^\d+$/, readdir(SRC));
+closedir(SRC);
+my %freqs;
+file: foreach my $file (@files)
+	{
+	open(SFILE, "$sdir/$file") || die "Could not open sourcefile $file:$!\n";
+	while(<SFILE>)
+		{
+		next file if(/PRIVATE/);
+		chomp;
+		next if(/^\[/);
+		my @words = split(/\s/, $_);
+		foreach my $word (@words)
+			{
+			if(($word =~ /^\w+$/) && ($word !~ /^\d+$/) )
+				{
+				$freqs{lc($word)}++;
+				}
+			}
+		}
+	close(SFILE);
+	}
+foreach my $word (sort {$freqs{$a} <=> $freqs{$b}} keys %freqs)
+	{
+	if($freqs{$word} > 10)
+		{
+		print join(" ", $freqs{$word} , $word) . "\n";
+		}
+	}
+}
+

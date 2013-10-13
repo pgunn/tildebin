@@ -1,0 +1,5 @@
+#! /bin/bash
+
+echo Stop being a dick! | write $USER
+echo $USER is being a dick | mail root
+echo $USER >> $HOME/naughtylist.log

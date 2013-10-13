@@ -1,0 +1,38 @@
+#!/usr/bin/perl -w
+
+use strict;
+use utf8;
+use encoding 'utf8';
+
+main();
+
+sub main
+{
+if(@ARGV < 3)
+	{die "Usage: wrapid3raw author album title filename\n";}
+
+my ($author, $album, $title, $fn) = @ARGV;
+my $mode;
+
+if($fn =~ /\.mp3/i)
+	{$mode = "mp3";}
+elsif($fn =~ /\.ogg/i)
+	{$mode = "ogg";}
+else
+	{die "Unrecognized-typed file [$fn]\n";next;}
+
+if($mode eq "mp3")
+	{
+	system('id3v2', '-D', $fn);
+	system('id3v2', '-t', $title, '-a', $author, '-t', $title, '-A', $album, $fn);
+	}
+elsif($mode eq "ogg")
+	{
+	system('vorbiscomment', '-w',
+		'-t', "artist=$author",
+		'-t', "album=$album",
+		'-t', "title=$title",
+		$fn);
+	}
+}
+

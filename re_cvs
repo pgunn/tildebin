@@ -1,0 +1,10 @@
+#!/usr/bin/perl -wi
+
+$deadstring = q{/mnt};
+# Pass me all the Root files, use me with find.
+
+while(<>)
+	{
+	s/$deadstring//;
+	print;
+	}

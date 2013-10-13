@@ -1,0 +1,31 @@
+#!/usr/bin/perl -w
+
+use strict;
+
+main();
+
+###############
+
+sub main
+{
+my %cfg = handle_args(@ARGV);
+system("autotrace $cfg{in} -background-color FFFFFF -color-count 2 -filter-iterations 30 -despeckle-level 20 -output-format fig -output-file $cfg{out}");
+print "Done\n";
+}
+
+sub handle_args
+{
+my @args = @_;
+my %cfg;
+if(@args != 2)
+	{
+	die "Usage: xfiggify INFILE OUTFILE\n";
+	}
+($cfg{in}, $cfg{out}) = @args;
+if(! -e $cfg{in})
+	{die "No input file\n";}
+if(-e $cfg{out})
+	{die "Output file already exists\n";}
+return %cfg;
+}
+

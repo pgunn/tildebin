@@ -1,0 +1,38 @@
+#!/usr/bin/perl -w
+
+my @files = @ARGV;
+my @junkfields = qw/TENC TYER TCOP TMED PRIV/;
+
+# ID3 tags for MP3s
+
+foreach my $file (@files)
+	{
+	my $startedp = 0;
+	my @results = `id3v2 -l $file`;
+	my $tag = (grep(/Comment/, @results))[0];
+	if(! $tag)
+		{warn "No tag for $file!\n";}
+	if(! ($tag =~ /Comment:\s*Track/) )
+		{
+		started(\$startedp, $file);
+		print "\tComment present\n";
+		}
+	foreach my $junk (@junkfields)
+		{
+		if(grep(/$junk/, @results))
+			{
+			started(\$startedp, $file);
+			print "\tExtra tag $junk\n";
+			}
+		}
+	}
+
+sub started($$)
+{
+my ($startedp, $fn) = @_;
+if($$startedp)
+	{return;}
+else
+	{$$startedp = 1; print "$fn:\n"};
+}
+

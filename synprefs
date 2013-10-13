@@ -1,0 +1,11 @@
+#!/bin/sh
+
+synclient ClickFinger2=0
+synclient ClickFinger3=0
+synclient PalmDetect=1
+synclient PalmMinWidth=7
+synclient TapAndDragGesture=0
+synclient RTCornerButton=3
+synclient LTCornerButton=2
+synclient AreaBottomEdge=4000
+synclient VertTwoFingerScroll=0

@@ -1,0 +1,3 @@
+#!/bin/sh
+
+mplayer -vo aa -monitorpixelaspect 0.5 "$@"

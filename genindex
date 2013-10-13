@@ -1,0 +1,11 @@
+#!/usr/bin/perl -w
+
+print "<html><head><title>File List</title></head>\n<body>\n";
+
+print "<ul>\n";
+foreach my $file (@ARGV)
+	{
+	print qq{\t<li><a href="$file">$file</a></li>\n};
+	}
+print "</ul>\n";
+print "</body></html>\n";

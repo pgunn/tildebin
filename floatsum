@@ -1,0 +1,22 @@
+#!/usr/bin/perl -w
+
+use strict;
+
+
+my $targfile = $ARGV[0];
+my @nums;
+while(<STDIN>)
+	{
+	push(@nums, $_);
+	}
+
+my $sum = 0;
+map
+	{
+	$sum += $_;
+	} @nums;
+
+my $avg = $sum / scalar(@nums);
+open(TARG, ">$targfile") || die "Failed to open [$targfile]:$!\n";
+print TARG $avg;
+close(TARG);

@@ -1,0 +1,4 @@
+#!/bin/sh
+
+cd ~/tome2/tome2/
+src/tome

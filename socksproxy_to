@@ -1,0 +1,5 @@
+#!/bin/sh
+
+ssh -D 8080 -Nf $* && \
+echo "Configure your browser to use a SOCKS proxy on localhost port 8080"
+

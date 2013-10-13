@@ -1,0 +1,34 @@
+#!/usr/bin/perl -w
+
+use strict;
+
+main();
+##############
+
+sub main
+{
+my %args = handle_args(@ARGV);
+open(FILE, $args{fn}) || die "Could not open $args{fn}:$!\n";
+my %stats;
+while(<FILE>)
+	{
+	$stats{countplus} += (s/<$args{tag}.*?>//ig);
+	$stats{countminus} += (s/<\/$args{tag}.*?>//ig);
+	}
+close(FILE);
+print "Stats: Open or self-contained tag: $stats{countplus}\n";
+print "Stats: Close tag: $stats{countminus}\n";
+}
+
+sub handle_args
+{
+my @args = @_;
+if(@args != 2)
+	{die "Usage: tagcount tag file\ntag should not have angle brackets\n";}
+my ($tag, $fn) = @_;
+if(! -r $fn) {die "second argument to tagcount must be a readable file\n";}
+my %ret;
+($ret{tag},$ret{fn}) = @args;
+return %ret;
+}
+

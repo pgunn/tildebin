@@ -1,0 +1,537 @@
+#!/usr/bin/perl -w
+
+use strict;
+use Term::ReadLine;
+# I suggest also installing Term::ReadLine::Gnu which will automatically be used
+# by Term::Readline if found
+
+use Net::DNS;
+use Net::Whois::IANA;
+use Net::Traceroute;
+
+use SDBM_File; # dbm that comes w/ perl so ppl never hit incompatibilities
+use Fcntl;
+
+my $lcache = $ENV{HOME} . '/.shemcache-l'; # cache for lookup results
+my $ncache = $ENV{HOME} . '/.shemcache-n'; # cache for notes
+
+main();
+
+##########################
+# Shem
+#	A utility to flexibly lookup and remember information about hosts
+#	Intended to replace:
+#		nslookup
+#		traceroute
+#		whois
+#		and your text editor
+#	for common tasks, providing a better interface than any of them
+#
+# Note: This code is possibly not secure and should not be repurposed without
+# 	extreme care in anything that would run setuid or as a web service
+##########################
+
+
+###########
+sub main
+{
+my $term = new Term::ReadLine('shem');
+my $prompt = "> ";
+my $OUT = $term->OUT || \*STDOUT;
+print "shem is using " . $term->ReadLine() . "\n";
+while ( defined (my $ln = $term->readline($prompt)) )
+	{
+	handle_line(line => $ln, outhandle => $OUT, termobj => $term);
+	$term->addhistory($ln); # XXX Consider...
+	}
+}
+
+# Parsing/management of input
+
+sub handle_line
+{
+my $args = Argpass::new('clean', @_);
+my $input = $args->mandate('line');
+my $out = $args->mandate('outhandle');
+my $term = $args->mandate('termobj');
+$args->argok();
+
+# my ($input, $term, $out) = @_;
+my ($cmd, @args) = parse_command($input);
+
+if($cmd eq 'null') {return;}
+elsif($cmd eq 'quit'){exit;}
+elsif($cmd eq 'help'){dispatch_help();}
+elsif($cmd eq 'lookup'){dispatch_lookup(stdout => $out, host => $args[0], do_dns => 1, do_whois => 1)}
+elsif($cmd eq 'hlookup'){dispatch_lookup(stdout => $out, host => $args[0], do_dns => 1, do_whois => 0)}
+elsif($cmd eq 'dns'){dispatch_lookup(stdout => $out, host => $args[0], do_dns => 1, do_trace => 0)}
+elsif($cmd eq 'whois'){dispatch_lookup(stdout => $out, host => $args[0], do_whois => 1, do_dns => 0, do_trace => 0)}
+elsif($cmd eq 'trace'){dispatch_lookup(stdout => $out, host => $args[0], do_trace => 1)}
+elsif($cmd eq 'notes'){dispatch_notes(stdout => $out, host => $args[0]);}
+elsif($cmd eq 'delnote'){dispatch_delnote(stdout => $out, host => $args[0]);}
+elsif($cmd eq 'addnote')
+	{
+	dispatch_addnote(stdout => $out, host => $args[0], text => $args[1]);
+	}
+elsif($cmd eq 'wtf'){dispatch_wtf(stdout => $out, badline => $args[0]);}
+
+$term->addhistory($input);
+}
+
+sub parse_command
+{ # extract a command from the user's input
+my ($input) = @_;
+my $command;
+my @c_args;
+
+my @parts = split(/ /, $input);
+#print STDERR "Debug: passed (" . join(',', @parts) . ");\n";
+if(@parts == 0)
+	{$command = 'null';}
+elsif($parts[0] =~ /^\d+\.\d+\.\d+\.\d+\.?$/) # Dotted quad
+	{$command = 'lookup', $c_args[0] = $parts[0];}
+elsif($parts[0] =~ /^\w+\.\w+\..*/) # hostname
+	{$command = 'hlookup', $c_args[0] = $parts[0];}
+elsif($parts[0] =~ /^help$/)
+	{$command = 'help';}
+elsif($parts[0] =~ /^quit$/)
+	{$command = 'quit';}
+elsif( ($parts[0] =~ 'dns') && (@parts == 2)) # Don't go using this code in a CGI
+	{$command = 'dns'; $c_args[0] = $parts[1];}
+elsif( ($parts[0] =~ 'whois') && (@parts == 2))
+	{$command = 'whois'; $c_args[0] = $parts[1];}
+elsif( ($parts[0] =~ 'trace') && (@parts == 2))
+	{$command = 'trace'; $c_args[0] = $parts[1];}
+elsif( ($parts[0] =~ 'notes') && (@parts == 2))
+	{$command = 'notes'; $c_args[0] = $parts[1];}
+elsif( ($parts[0] =~ 'addnote') && (@parts > 2))
+	{$command = 'addnote'; $c_args[0] = $parts[1];$c_args[1] = join(' ', @parts[2..$#parts])}
+elsif( ($parts[0] =~ 'delnote') && (@parts == 2))
+	{$command = 'delnote'; $c_args[0] = $parts[1];}
+else {$command = 'wtf'; $c_args[0] = join(' ', @parts[0..$#parts]);} # Tell the user it's a bad cmd
+
+#print STDERR "Debug: Return $command (" . join(',', @c_args) . ");\n";
+return ($command, @c_args);
+}
+
+# Lookups
+sub dns_lookup($)
+{
+my ($host) = @_;
+my $returner = '';
+my $resolver = Net::DNS::Resolver->new();
+my $query = $resolver->search($host);
+if(! $query) {return (0,"No record\n");}
+else
+	{
+	my @answers = $query->answer();
+	if(@answers > 1)
+		{
+		foreach my $reply ($query->answer() )
+			{
+			$returner .= $reply->type() . '  --  ' . $reply->rdatastr() . "\n";
+			}
+		}
+	else
+		{
+		$returner .= ($query->answer())[0]->rdatastr();
+		}
+	}
+return (1, $returner);
+}
+
+sub whois_lookup($)
+{
+my ($host) = @_;
+if($host !~ /^[0123456789.]+$/) {return (0, "[$host]: Only implemented for IPs");}
+my $returner = '';
+my $status = 1; # was the query successful?
+my $resolver = new Net::Whois::IANA;
+	{
+	stfu();
+	$resolver->whois_query(-ip => $host);
+	$returner .=  	join('/',
+				$resolver->source(),
+				$resolver->country(),
+				$resolver->netname(),
+				$resolver->descr()
+				);
+	if(! (
+		$resolver->netname() 
+||	 	$resolver->descr() ))
+		{$status = 0;} # Failure
+	un_stfu();
+	}
+return ($status, $returner);
+}
+
+sub trace_lookup($)
+{ # Show the last few hops
+my ($host) = @_;
+my $ret = "TRACE:\n";
+my $trace = Net::Traceroute->new(host => $host);
+my @hops;
+for(my $hopid=0;$hopid < $trace->hops(); $hopid++)
+	{
+	my $info = $trace->hop_query_host($hopid,0);
+	next if(! defined($info));
+	if($info =~ /[0-9.]+/) # If we got an IP
+		{
+		push(@hops, $info);
+		}
+	}
+foreach my $hop ( ($#hops - 3 < 0)?0:($#hops-3)..$#hops)
+	{ # Last 3 if we have 3
+	$ret .= "\t" . $hops[$hop] . ' (' . dns_lookup($hops[$hop]) . ")\n";
+	}
+return $ret;
+}
+
+# Note-related stuff
+
+sub do_add_note
+{
+my $args = Argpass::new('clean', @_);
+my $ident = $args->mandate('identifier');
+my $text = $args->mandate('text');
+$args->argok();
+
+my %notes;
+tie(%notes, 'SDBM_File', $ncache, O_CREAT|O_RDWR, 0666) || return(0, "DBM failed: $!\n");
+$notes{$ident} = $text;
+untie(%notes);
+return (1, 'Success');
+}
+
+sub do_lookup_note
+{
+my $args = Argpass::new('clean', @_);
+my $ident = $args->mandate('identifier');
+$args->argok();
+
+my $text;
+my %notes;
+tie(%notes, 'SDBM_File', $ncache, O_CREAT|O_RDWR, 0666) || return(0, "DBM failed: $!\n");
+$text = $notes{$ident};
+untie(%notes);
+if(defined $text)
+	{return(1, $text);}
+else
+	{return(0, 'No notes');}
+}
+
+sub do_del_note
+{
+my $args = Argpass::new('clean', @_);
+my $ident = $args->mandate('identifier');
+$args->argok();
+
+my %notes;
+tie(%notes, 'SDBM_File', $ncache, O_CREAT|O_RDWR, 0666) || return(0, "DBM failed: $!\n");
+if(! $notes{$ident}) {untie(%notes);return(0, "Key not found");}
+delete $notes{$ident};
+untie(%notes);
+return(1, 'Success');
+}
+
+# Dispatches
+sub dispatch_lookup
+{
+my $args = Argpass::new('clean', @_);
+my $host = $args->mandate('host');
+my $dnsp = $args->accept('do_dns', 1);
+my $whoisp = $args->accept('do_whois', 0);
+my $tracep = $args->accept('do_trace', 2);
+my $out = $args->mandate('stdout');
+$args->argok();
+
+if($host =~ /^(\d+)\.(\d+)\.(\d+)\.(\d+)$/) # Looks like an IP address...
+	{
+	my @parts = ($1,$2,$3,$4); # Save the bits
+	foreach my $part (@parts)
+		{
+		if($part > 255) {print $out "Invalid IP address format\n";return;}
+		}
+	}
+
+my %dns;
+my %whois;
+my %trace;
+if($dnsp)
+	{
+	$dns{did} = 1;
+	($dns{status},$dns{msg}) = dns_lookup($host);
+	}
+if($whoisp)
+	{
+	$whois{did} = 1;
+	($whois{status},$whois{msg}) = whois_lookup($host);
+	}
+if($tracep)
+	{
+	if(
+		($tracep == 1) # Explicitly asked
+||
+		($tracep == 2 # A bit more complex - the auto case
+	&&	!(($whois{did} && $whois{status}) || ($dns{did} && $dns{status}))
+		))
+		{
+		$trace{did} = 1;
+		$trace{msg} = trace_lookup($host); # Cannot (yet) detect failure
+		}
+	}
+
+if($dns{did})   {print $out "DNS: " . $dns{msg} . "\n";}
+if($whois{did}) {print $out "WHOIS: " . $whois{msg} . "\n";}
+if($trace{did}) {print $out $trace{msg} . "\n";}
+}
+
+sub dispatch_help
+{
+print <<EOHELP;
+Usage: shem
+
+Shem uses a shell environment in which you may enter commands.
+Commands:
+	IP_ADDRESS or HOSTNAME
+		gets information on the requested hostname/ip address
+	help
+		request a helpful command intro
+	dns HOST
+		do a DNS lookup on the given host
+	whois IP_ADDRESS
+		do a WHOIS lookup on the given IP_ADDRESS
+	trace HOST
+		do a trace lookup on the given host
+	notes HOST
+		lookup notes on the given host
+	addnote HOST NOTE
+		set a note on the given host. Spaces are kosher in the note.
+		Don't use quotes to chunk the note.
+	delnote HOST
+		delete note on the goven host.
+	quit
+EOHELP
+}
+
+sub dispatch_wtf
+{
+my $args = Argpass::new('clean', @_);
+my $junk = $args->mandate('badline');
+my $out = $args->mandate('stdout');
+$args->argok();
+
+print $out "Bad command [$junk], use help command for help\n";
+}
+
+sub dispatch_unimplemented
+{
+my $args = Argpass::new('clean', @_);
+my $out = $args->mandate('stdout');
+$args->argok();
+
+print $out "Feature not presently implemented\n";
+}
+
+sub dispatch_notes
+{ # Look up note corrisponding to a given host
+my $args = Argpass::new('clean', @_);
+my $host = $args->mandate('host');
+my $out = $args->mandate('stdout');
+$args->argok();
+
+# TODO Later work out a way to handle ranges, for now, do the simple thing
+my ($ok, $note) = do_lookup_note(identifier => $host);
+if($ok)
+	{print $out "Notes: $note\n";return 1;}
+else
+	{print $out "Notes failure: $note\n";return 0;}
+}
+
+sub dispatch_addnote
+{ # TODO Add capability to manage non-simple-host addresses
+my $args = Argpass::new('clean', @_);
+my $host	= $args->mandate('host');
+my $text	= $args->mandate('text');
+my $out		= $args->mandate('stdout');
+$args->argok();
+
+my ($ok, $why) = do_add_note(identifier => $host, text => $text);
+if($ok)
+	{print $out "OK $host -> $text\n";}
+else
+	{print $out "Failed: $why\n";}
+}
+
+sub dispatch_delnote
+{
+my $args = Argpass::new('clean', @_);
+my $host = $args->mandate('host');
+my $out = $args->mandate('stdout');
+$args->argok();
+my ($ok, $msg) = do_del_note(identifier => $host);
+
+if($ok) {print $out "OK\n";}
+else	{print $out $msg . "\n";}
+}
+
+# Some of the modules I use are stupid and chatter or give out warnings.
+# This function pair lets me close STDERR temporarily while they're called
+# so they'll neither irritate me nor screw up use of curses-based readline modules
+
+sub stfu
+{ # For stupid modules that don't know how to shut up.
+	# Send STDERR to /dev/null
+open (OLDERR, ">&", \*STDERR) || die "Can't dup STDERR: $!";
+print OLDERR '';
+close(STDERR);
+}
+
+sub un_stfu
+{
+open(STDERR, ">&OLDERR") || die "Could not reopen STDERR: $!";
+}
+
+#############################################
+# To make this easier to share, I am pasting the body of my
+# argpass module in here (excluding the inline documentation)
+# This version extracted from the development version included in POUND
+#	Current as of 28 Aug 2008
+#	Most recent refresh: never
+#############################################
+
+package Argpass;
+
+sub new
+{
+my ($policy, %args) = @_;
+if( ($policy ne 'loose') && ($policy ne 'clean'))
+	{
+	Carp::confess "Argpass asked to assume unknown policy $policy\n";
+	}
+my $self =
+	{
+	args => \%args,
+	pol => $policy
+	};
+bless $self;
+return $self;
+}
+
+sub accept($$$)
+{
+my ($self, $key, $default) = @_;
+if(exists $self->{args}{$key}) # _not_ defined() - value may be undef, which still overrides default.
+	{
+	my $ret = $self->{args}{$key};
+	delete $self->{args}{$key};
+	return $ret;
+	}
+else
+	{return $default;}
+}
+
+sub accept_v($$$$)
+{
+my ($self, $sig, $key, $default) = @_;
+if(exists $self->{args}{$key}) # If it exists, verify type and accept
+	{
+	if(verify($sig, $self->{args}{$key}))
+		{
+		my $ret = $self->{args}{$key};
+		delete($self->{args}{$key}); # Remove it from the hash entirely.
+		return $ret;
+		}
+	else
+		{
+		Carp::confess "Invalid argument: signature $sig not matched! ";
+		}
+	}
+# otherwise, just accept default
+return $default;
+}
+
+sub mandate($$)
+{
+my ($self, $key) = @_;
+if(exists $self->{args}{$key})
+	{
+	my $ret = $self->{args}{$key};
+	delete $self->{args}{$key};
+	return $ret;
+	}
+Carp::confess "Mandated argument $key not present! ";
+}
+
+sub mandate_v($$$)
+{
+my ($self, $sig, $key) = @_;
+if(exists $self->{args}{$key}) # If it exists, verify type and accept
+	{
+	if(verify($sig, $self->{args}{$key}))
+		{
+		my $ret = $self->{args}{$key};
+		delete($self->{args}{$key}); # Remove it from the hash entirely.
+		return $ret;
+		}
+	else
+		{
+		Carp::confess "Invalid argument: signature $sig not matched! ";
+		}
+	}
+Carp::confess "Mandated argument $key not present! ";
+}
+
+sub policy($)
+{ # Hmm. Need some some inner state or disallow nesting arg handling. 
+my ($self, $policy) = @_;
+$self->{pol} = $policy; # TODO Check for invalid values..
+}
+
+sub argok($)
+{
+my ($self) = @_;
+if($self->{pol} eq 'clean')
+	{
+	if( (keys %{$self->{args}}) != 0)
+		{
+		Carp::confess "Argpass policy violation: Unknown keys " . join(' ', keys %{$self->{args}}) . "\n";
+		}
+	}
+}
+
+sub verify($$)
+{
+my ($sig, $var) = @_; # MUST allow $var to be undef, handle appropriately
+if($sig eq '$')
+	{
+	if(ref($var))
+		{Carp::confess "Verification failed in argument passing: $var is not a scalar\n";}
+	}
+elsif($sig =~ /^r(.)/)
+	{ # reference
+	my $reft = $1;
+	my $refto = ref($var);
+	if(! $refto)
+		{Carp::confess "Verification failed in argument passing: $var is not a reference\n";}
+	if(
+	(($reft eq '$') && ($refto ne 'SCALAR'))
+	||
+	(($reft eq '@') && ($refto ne 'ARRAY'))
+	||
+	(($reft eq '%') && ($refto ne 'HASH'))
+	||
+	(($reft eq '&') && ($refto ne 'CODE'))
+	||
+	(($reft eq '\\') && ($refto ne 'REF'))
+	 )
+		{
+		Carp::confess "Verification failed in argument passing: $var is not of type $reft\n";
+		}
+	}
+else
+	{Carp::confess "Unknown verification standard [$sig]\n";}
+return 1;
+}
+
+1;

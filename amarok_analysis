@@ -1,0 +1,67 @@
+#!/usr/bin/perl -w
+
+use strict;
+use DBI;
+my $dbname = 'amarok_analysis';
+my $table = 'music';
+my $homedir = $ENV{HOME};
+my $sep = '||'; # Must match what's in amaroksql_dump
+my $csv = qq{$homedir/amarok_export.csv};
+my $tbcreate = "CREATE TABLE $table (path TEXT UNIQUE, rating INT, artist TEXT, album TEXT, title TEXT);"; # Must line up with whatever fields you import
+main();
+
+##################################
+# Loads an amarok resultsfile into a PostgreSQL database for analysis
+
+sub main
+{
+system("dropdb $dbname");
+system("createdb $dbname");
+open(CSV, $csv) || die "Could not open CSV [$csv]:$!\n";
+my $searcher = regex_quote();
+print "Splitting on $searcher\n";
+my @header = split(/$searcher/, readline(CSV)); # Was going to automate table creation from this,
+						# but no way to come up with good types that way.
+
+my $dbh = DBI->connect("DBI:Pg:dbname=$dbname",'','');
+my $tc = $dbh->do($tbcreate);
+print "Entering " . scalar(@header) . " fields...\n";
+my $ins = $dbh->prepare("INSERT INTO $table VALUES(" . placeholders(scalar(@header)) . ");");
+while(<CSV>)
+	{
+	my @bits = split(/$searcher/, $_);
+	$ins->execute(@bits);
+	}
+close(CSV);
+
+}
+
+sub placeholders
+{
+my ($num) = @_;
+my $ret;
+if($num)
+	{
+	$num--;
+	$ret = '?';
+	$ret .= ',?' x $num;
+	}
+return $ret;
+}
+
+sub regex_quote
+{
+my @bits = split(//,$sep);
+my $ret = '';
+foreach my $bit (@bits)
+	{
+	if($bit =~ /[|.?*\\\[\]]/) # Add any characters that need escaping here
+		{
+		$ret .= '\\' . $bit;
+		}
+	else
+		{$ret .= $bit;}
+	}
+return $ret;
+}
+

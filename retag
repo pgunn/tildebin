@@ -1,0 +1,172 @@
+#!/usr/bin/perl -w
+
+use strict;
+
+# Use wrapid3 and dotfiles to try to figure out appropriate tags for files
+# and apply them.
+
+my $doit = 1; # Set to 0 for testing..
+
+main();
+
+#########################
+
+sub main
+{
+my @args = handle_args(@ARGV); # List of dirs to retag
+foreach my $dir (@args)
+	{
+	$dir =~ s/\/$//;
+	my $artist;
+	my $album;
+	if(! -f "$dir/.artist")
+		{
+		my $cleandir = dir_lastpart($dir);
+		# Try to figure out the artist based on the filename...
+		if($cleandir =~ /^([^-]+)-.*/) # my_artist-album_name
+					# or my_artist-year-album_name
+			{
+			my $raw_artist = $1;
+			$artist = fixcaps($raw_artist);
+			}
+		else {$artist = 'UNKNOWN';}
+		print "D:[$cleandir] Resolved artist to $artist\n";
+		}
+	else
+		{
+		open(DA, "$dir/.artist");
+		$artist = readline(DA);
+		close(DA);
+		chop($artist);
+		print "D:[$dir] Read artist as $artist\n";
+		}
+	if(! -f "$dir/.album")
+		{
+		# Try to figure out the album based on the filename...
+		my $cleandir = dir_lastpart($dir);
+		if($cleandir =~ /^[^-]+-\d+-([^\/]*)/) # my_artist-year-album_name
+			{
+			my $raw_album = $1;
+			$album = fixcaps($raw_album);
+			}
+		elsif($cleandir =~ /^[^-]+-([^\/]*)/) # my_artist-album_name
+			{
+			my $raw_album = $1;
+			$album = fixcaps($raw_album);
+			}
+		elsif($cleandir =~ /^(.+)$/)
+			{
+			my $raw_album = $1;
+			$album = fixcaps($raw_album);
+			}
+		else {$album = 'misc';}
+		print "D:[$cleandir] Resolved album to $album\n";
+		}
+	else
+		{
+		open(DA, "$dir/.album");
+		$album = readline(DA);
+		close(DA);
+		chop($album);
+		print "D:[$dir] Read album as $album\n";
+		}
+	# Let's retag all things with "misc" as the album title to artist-misc as the album-title so we don't
+	# create a giant virtual album for things that sort on that.
+
+	if($album =~ /^misc$/i)
+		{$album = "$artist-misc";}
+
+	# Ok, now that we have good guesses on artist and album, retag all files in the dir as appropriate. Note
+	# that if the filenames are of form 03-artist-title.ogg, we should relearn the artist from that.
+	my %files;
+	opendir(DIR, $dir) || die "Could not open [$dir]:$!\n";
+	map 	{
+		$files{"$dir/$_"} = $_;
+		}
+		grep {!/^\./}
+		readdir(DIR);
+	closedir(DIR);
+
+	foreach my $fn (sort {$a cmp $b} keys %files)
+		{
+		my $toparse = $files{$fn};
+		my $title;
+		if($toparse =~ /^(?:\d+-)?([A-Za-z][^-.]*)-([^-.]+).(?:ogg|mp3)/) # Form: 03-artist-title.ogg
+			{
+			my ($rartist, $rtitle) = ($1, $2);
+			my $artist = fixcaps($rartist);
+			if($rtitle =~ /^(.*)__(.*)$/)
+				{$rtitle = "$1 (" . lc($2) . ")";}
+			$title = fixcaps($rtitle);
+			print "\tF:[$fn] A: [$artist] T: [$title]\n";
+			}
+		elsif($toparse =~ /^(?:\d+-)?([^-.]+).(?:ogg|mp3)/) # Form: 03-title.ogg
+			{
+			my $rtitle = $1;
+			if($rtitle =~ /^(.*)__(.*)$/)
+				{$rtitle = "$1 (" . lc($2) . ")";}
+			$title = fixcaps($rtitle);
+			print "\tF:[$fn] A: [$artist] T: [$title]\n";
+			}
+		else # Form: ???
+			{
+			print "\tF:[$fn] Could not parse\n";
+			}
+		if(! defined($title)) {die "Cannot apply an unknown title to $fn\n";}
+		system('wrapid3raw', $artist, $album, $title, $fn);
+		}	
+	}
+}
+
+sub handle_args
+{
+my @args = @_;
+foreach my $arg (@args)
+	{
+	if(! -d $arg)
+		{usage();}
+	}
+return @args;
+}
+
+sub usage
+{
+die "Usage: retag DIR1 [DIR2 ..]\n";
+}
+
+sub fixcaps
+{
+my ($in) = @_;
+$in =~ s/_s_/'s_/; # See if we can rescue some contractions...
+$in =~ s/_m_/'m_/;
+$in =~ s/_t_/'t_/;
+$in =~ s/_ve_/'ve_/;
+$in =~ s/_re_/'re_/;
+my $nam = join(' ',
+		map
+			{
+			ucfirst($_)
+			} split(/_/, $in) );
+foreach my $lcword (qw/The A An It As Of/)
+	{
+	my $lcform = lc($lcword);
+	$nam =~ s/\b$lcword\b/$lcform/g;
+	}
+foreach my $ucword (qw/Vs/)
+	{
+	my $ucform = uc($ucword);
+	$nam =~ s/\b$ucword\b/$ucform/g;
+	}
+
+return ucfirst($nam); # String as a whole is ucfirsted, even if word ordinarily wouldn't be..
+}
+
+sub dir_lastpart
+{ # Turn a path into a lastpart (so we can sanely parse albums without getting bogged down in more path than we need)
+	# e.g. collection/death_cab_for_cutie-sword_dances  -> death_cab_for_cutie-sword_dances
+my ($dirname) = @_;
+$dirname =~ s/\/$//; # Need to remove trailing slashes so we don't nuke the whole thing
+$dirname =~ s/^.*\///; # Kill everything up to the last slash.
+return $dirname;
+}
+

@@ -1,0 +1,14 @@
+#!/usr/bin/perl -w
+
+while(<>)
+{
+s/^http:\/\/guide.opendns.com\/\?url=//;
+s/^http:\/\///;
+s/%2F/\//g;
+s/%3F/=/g;
+s/%3D/=/g;
+s/%26/&/g;
+s/%3A/:/g;
+
+print "\nhttp://$_\n";
+}

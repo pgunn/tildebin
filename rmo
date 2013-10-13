@@ -1,0 +1,29 @@
+#!/usr/bin/perl -w
+
+use strict;
+main();
+
+#####################
+
+sub main
+{
+my @files = @ARGV;
+foreach my $file (@files)
+	{
+	if( -f $file)
+		{
+		unlink($file) || die "Could not unlink: $!\n";
+		}
+	elsif( -d $file)
+		{
+		rmdir($file) || die "Could not unlink: $!\n";
+		}
+	else
+		{die "I don't know how to handle this filetype\n";}
+	while($file =~ s/\/[^\/]+$//)
+		{
+		rmdir($file) || die "Could not cleanup $file:$!\n";
+		}
+	}
+}
+

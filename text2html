@@ -1,0 +1,17 @@
+#!/usr/bin/perl
+
+die "I only accept one argument" unless ($#ARGV == 0);
+$fname = shift(@ARGV);
+$tname = $fname;
+$tname =~ s/\.txt$//;
+$hname = $fname;
+($hname =~ s/\.txt$/\.html/) || die "Invalid input filename";
+open(IFILE, "$fname") || die "Cannot open input file";
+die "Output file already exists" if -f $hname;
+open(OFILE, ">$hname");
+print OFILE '<HEAD><TITLE>' . $tname . '</TITLE></HEAD>' . "\n";
+print OFILE '<BODY BGCOLOR="beige"><PRE>' . "\n";
+undef $/;
+$contents = <IFILE>;
+print OFILE $contents . "\n";
+print OFILE '</PRE>' . "\n";;

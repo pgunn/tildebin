@@ -1,0 +1,5 @@
+#!/bin/sh
+
+echo "Trying to connect the remote system's port 1600 to your local sshd.."
+ssh -nNT -R:1600:localhost:22 $* && \
+echo "Closing connection"

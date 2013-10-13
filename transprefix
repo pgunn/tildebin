@@ -1,0 +1,3 @@
+#!/usr/bin/perl
+
+system('transrename', "s/^/$ARGV[0]/", $ARGV[1]);

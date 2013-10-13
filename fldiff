@@ -1,0 +1,94 @@
+#!/usr/bin/perl -w
+
+use strict;
+
+my $sep = 'VS';
+
+# Utility to diff two lists of files
+# Example usage:
+#  fldiff `grep Argpass * | cut -d: -f1 | uniq` VS `ls *.pm`
+#  That'd find all .pm files that don't have the text "Argpass" in them...
+
+main();
+
+############################
+
+sub main
+{
+my @args = @ARGV;
+my ($list1, $list2) = get_lists_from_args(@args);
+sorted_compare($list1, $list2);
+}
+
+sub usage
+{
+die "usage: fldiff FILES1.. $sep FILES2..\n\tFiles in list delimited by spaces\n";
+}
+
+sub get_lists_from_args
+{
+my (@args) = @_;
+my @lists;
+my $clist = 0;
+foreach my $arg (@args)
+	{
+	if($arg eq $sep)
+		{$clist++;next;}
+	push(@{$lists[$clist]}, $arg);
+	}
+if( (! $lists[1]) || (! $lists[0]))
+	{usage();}
+my @l1 = sort @{$lists[0]};
+my @l2 = sort @{$lists[1]};
+
+return(\@l1, \@l2);
+}
+
+sub sorted_compare
+{
+my($l1, $l2) = @_;
+# my @onlyl1;
+# my @onlyl2;
+
+while(@$l1 && @$l2)
+	{ # Easy to compare two nonempty lists
+	my $versus = $$l1[0] cmp $$l2[0];
+	if($versus == 0)
+		{ # Same element in each, quietly remove
+		splice(@$l1, 0, 1);
+		splice(@$l2, 0, 1);
+		}
+	elsif($versus < 0) # First list is first
+		{
+		my $just1 = splice(@$l1, 0, 1);
+		# push(@onlyl1, $just1);
+		print "<$just1\n";
+		}
+	else # $versus > 0, second list is first
+		{
+		my $just2 = splice(@$l2, 0, 1);
+		# push(@onlyl2, $just2);
+		print ">$just2\n";
+		}
+	}
+
+if(@$l1)
+	{
+	foreach my $flentry (@$l1)
+		{
+		# push(@onlyl1, $flentry);
+		print "<$flentry\n";
+		}
+	}
+
+if(@$l2)
+	{
+	foreach my $flentry (@$l2)
+		{
+		# push(@onlyl2, $flentry);
+		print ">$flentry\n";
+		}
+	}
+
+}
+

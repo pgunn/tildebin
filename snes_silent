@@ -1,0 +1,3 @@
+#!/bin/sh
+
+${HOME}/snes9x-1.51/snes9x -ns -r 0 $*

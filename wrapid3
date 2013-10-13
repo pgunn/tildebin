@@ -1,0 +1,53 @@
+#!/usr/bin/perl -w
+
+use strict;
+use utf8;
+use encoding 'utf8';
+
+main();
+
+sub main
+{
+if(@ARGV < 3)
+	{die "Usage: wrapid3 author album filenames..\n";}
+
+my $author = $ARGV[0];
+my $album = $ARGV[1];
+my @fns;
+foreach my $ofn (@ARGV[2 .. $#ARGV])
+	{
+	if( -f $ofn )
+		{push(@fns, $ofn);}
+
+	elsif( -d $ofn )
+		{
+		opendir(DIR, $ofn) || die "Internal error\n";
+		my @files = 	map {"$ofn/$_"}
+				grep {!/^\./}
+				readdir(DIR);
+		closedir(DIR);
+		push(@fns, @files);
+		}
+	}
+
+foreach my $fn (@fns)
+	{
+	my $mode;
+#	print "$fn\n";
+	my $cfn = $fn;
+	$cfn =~ s/^.*\///; # Remove path
+	$cfn =~ s/^\d*-//;
+	$cfn =~ s/^.*-//; # EXPERIMENTAL!
+
+	if(!	($cfn =~ s/\.mp3//i)
+||		($cfn =~ s/\.ogg//i))
+		{warn "Skip unrecognized-typed file [$fn]\n";next;}
+
+	$cfn =~ tr/_/ /;
+	$cfn = join(' ', map{ucfirst($_)} split(/ /, $cfn));
+#	print "$fn => $cfn\n";
+#	print "\tauthor: $author\n\talbum: $album\n";
+	system('wrapid3raw', $author, $album, $cfn, $fn);
+	}
+}
+

@@ -1,0 +1,85 @@
+#!/usr/bin/perl -w
+
+use strict;
+use DBI;
+require 5.10.0; # Need at least 5.8, maybe 5.10 for "my" inside a while()
+
+my $homedir = $ENV{HOME};
+my $sockfile = qq{$homedir/.kde/share/apps/amarok/sock};
+my $sep = '||';
+my $csv = qq{$homedir/amarok_export.csv};
+my @q_fields = qw/urls.rpath rating artists.name albums.name title/;
+my @q_tables = qw/tracks statistics artists albums urls/;
+my @q_cond = qw/tracks.url=statistics.url tracks.artist=artists.id albums.id=tracks.album urls.id=tracks.url/;
+my $q_extra = 'ORDER BY urls.rpath';
+
+main();
+
+##########################
+# Slurp amarok database into a table, dump to CSV
+
+sub main
+{
+print "Got here\n";
+open(DUMP, ">$csv") || die "Failed to open CSV output [$csv]:$!\n";
+my $dbh = DBI->connect("DBI:mysql:database=amarok:mysql_socket=$sockfile",'','');
+my $query = 'SELECT ' . join(',', prepare_qfields(@q_fields))
+. 	' FROM ' . $q_tables[0] . (@q_tables > 1 ? join(' ', map{" JOIN $_"} @q_tables[1..$#q_tables]) : '') # get all the tables together
+.	(@q_cond ?
+		(' WHERE ' . $q_cond[0] . (@q_cond > 1 ? join(' ', map{" AND $_"} @q_cond[1..$#q_cond]):'')) # get all the clauses together
+:	'') # Nothing if there are no conditionals
+. ' ' . $q_extra;
+
+print "Set to execute [$query]\n";
+my $qh = $dbh->prepare($query);
+#my $qh = $dbh->prepare("SELECT urls.rpath,rating,artists.name,albums.name,title FROM tracks JOIN statistics JOIN artists JOIN albums JOIN urls WHERE tracks.url=statistics.url AND tracks.artist=artists.id AND albums.id = tracks.album AND urls.id=tracks.url ORDER BY urls.rpath");
+$qh->execute();
+my @q_nfields = neuter_fields(@q_fields);
+print DUMP join($sep, @q_nfields) . "\n";
+while(my %bit = get_dbresults($qh))
+	{
+	map 	{
+		if(! defined( $bit{$_})) {$bit{$_}='';}
+		} @q_nfields;
+	print DUMP join($sep, @bit{@q_nfields}) . "\n"; # Our gymnastics above pay off...
+	}
+close(DUMP);
+}
+
+sub prepare_qfields
+{
+my @fields = @_;
+return map{($_ =~ /\./) ? ($_ . ' AS ' . sanitise_qfield($_)) : $_ } @fields;
+}
+
+sub sanitise_qfield
+{
+my ($in) = @_;
+$in =~ tr/./_/;
+return $in;
+}
+
+sub neuter_fields
+{ # Yay SQL
+return map
+	{
+	sanitise_qfield($_);
+	} @_;
+}
+
+
+########################################
+
+
+sub get_dbresults($)
+{ # Returns a proper hash instead of a reference to one
+my ($dbq) = @_;
+my $reshdl = $dbq->fetchrow_hashref();
+my %returner;
+if(defined($reshdl))
+	{
+	%returner = %$reshdl;
+	}
+return %returner;
+}
+

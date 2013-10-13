@@ -1,0 +1,28 @@
+#!/usr/bin/perl -w
+
+use strict;
+use Digest::MD5 qw/md5_hex/;
+
+main();
+
+#################################
+# Shows a listing of size, md5sum, and filename
+#################################
+
+sub main
+{
+my @args = @ARGV;
+foreach my $arg (@ARGV)
+	{
+	if(! -f $arg)
+		{die "Could not find file [$arg]\n";}
+	else
+		{
+		my $size = -s $arg;
+		open(ARG, $arg);local $/;my $data = readline(ARG);close(ARG);
+		my $md5sum = md5_hex($data);
+		print "$md5sum $size $arg\n";
+		}
+	}
+}
+

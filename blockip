@@ -1,0 +1,12 @@
+#!/usr/bin/perl
+
+if(@ARGV < 1) {die "Usage: blockip IP.ADDR REASON\n";}
+system('iptables', '-A', 'INPUT', '-s', $ARGV[0], '-j', 'DROP');
+`iptables-save > /etc/sysconfig/iptables`;
+open(IPLOG, ">>/etc/sysconfig/iptables-WHY") || die "Could not log why\n";
+print IPLOG "Banned $ARGV[0]";
+if(@ARGV > 1)
+        {my $reason = ' because ' . join('', @ARGV[1..$#ARGV]); print IPLOG $reason;}
+print IPLOG "\n";
+close(IPLOG);
+

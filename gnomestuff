@@ -1,0 +1,29 @@
+#!/bin/sh
+
+sleep 5
+xterm -e screen &
+sleep 1
+screen -X exec ... /usr/libexec/gnome-settings-daemon
+sleep 3
+screen -X screen
+sleep 1
+screen -X exec ... fixrepeat
+sleep 1
+screen -X screen
+sleep 1
+screen -X exec ... gnome-power-manager
+sleep 1
+screen -X screen
+sleep 3
+screen -X exec ... gnome-panel
+sleep 3
+#screen -X screen
+#sleep 1
+#screen -X exec ... pulseaudio
+#sleep 1
+screen -X screen
+sleep 1
+screen -X exec ... xmodmap .xmodmaprc
+sleep 1
+screen -X detach
+

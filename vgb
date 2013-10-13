@@ -1,0 +1,3 @@
+#!/bin/sh
+
+/home/pgunn/vgb-3.0/vgb -sync 20 $*

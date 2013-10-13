@@ -1,0 +1,5 @@
+#!/bin/bash
+
+# Quick rip a DVD to foo.avi
+
+mencoder dvd://1 -vf scale=640:480 -o foo.avi -oac copy -ovc lavc

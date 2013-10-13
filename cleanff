@@ -1,0 +1,26 @@
+#!/usr/bin/perl -w
+
+use strict;
+my $mozprof = $ENV{HOME} . '/.mozilla/firefox/5gxzyvxq.default';
+main();
+
+##############################
+# Run me when the awesome bar gets too non-awesome!
+# Used to clean Firefox's SQLite databases when they get too full and need a vacuum.
+# Should be non-destructive, but to be safe, run while Firefox is stopped.
+##############################
+
+sub main
+{
+chdir($mozprof) || die "Failed to enter profile dir [$mozprof]:$!\n";
+opendir(HERE, '.') || die "Failed to read this dir:$!\n";
+my @sqlite_dbs = grep /\.sqlite$/,
+			readdir(HERE);
+closedir(HERE);
+foreach my $sqlitedb (@sqlite_dbs)
+	{
+	print "Cleaning $sqlitedb\n";
+	system(qq/echo "VACUUM;" |sqlite3 $sqlitedb/);
+	}
+}
+

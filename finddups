@@ -1,0 +1,113 @@
+#!/usr/bin/perl -w
+
+use strict;
+use Digest::MD5 qw(md5); # Prefer not to do explosive number of diffs...
+use MIME::Base64;
+
+# Find duplicate files, under named subdirs
+# directory.
+
+main();
+
+#########################
+
+sub main
+{
+my @dirs = handle_args(@ARGV);
+my %cstor;
+foreach my $dir (@dirs)
+	{
+	print "Scanning directory [$dir]\n";
+	parsedir(\%cstor, $dir);
+	}
+print "Data read. Processing...\n";
+map
+	{
+	print "Duplicate MD5: [" . format_md5($_) . "]\n";
+	print "\tFiles:\n"
+.		join("\n", map{"\t[$_]"} (keys %{$cstor{MD5}{$_}}) );
+	print "\n\n";
+	} (grep {keys %{$cstor{MD5}{$_}} > 1} keys %{$cstor{MD5}}) # All keys with more than one file associated with them..
+}
+
+sub parsedir
+{
+my ($cstor, $dir) = @_;
+opendir(DIR, $dir) || die "Could not open directory $dir:$!\n";
+my @files = grep {!/^\./} readdir(DIR);
+closedir(DIR);
+foreach my $file (@files)
+	{
+	if(-l "$dir/$file")
+		{
+#		print "LINK: $dir/$file\n";
+		}
+	elsif(-d "$dir/$file")
+		{
+		parsedir($cstor, "$dir/$file");
+		}
+	elsif(-f "$dir/$file")
+		{
+#		print "FILE: $dir/$file\n";
+		my ($dev, $inode, undef, undef, undef, undef, undef, $size) = stat("$dir/$file");
+		$$cstor{PRI}{"$dir/$file"}{size} = $size; # Index by file..
+		$$cstor{PRI}{"$dir/$file"}{ident} = "$dev-$inode";
+
+		if(keys %{$$cstor{SIZ}{$size}})
+			{ # We've seen a file of this size before...
+			my $md5sum = get_md5("$dir/$file");
+			$$cstor{MD5}{$md5sum}{"$dir/$file"} = 1; # Note our md5sum..
+			if(keys %{$$cstor{SIZ}{$size}} > 1) # All others are initialised, so just initialise this one, as above
+				{
+				}
+			else
+				{ # lazy-initialise the other one, because we're completing a size-pair
+				my ($otherfile) = keys %{$$cstor{SIZ}{$size}};
+				my $omd5 = get_md5($otherfile);
+				$$cstor{MD5}{$omd5}{$otherfile} = 1;
+				}
+			} 
+		$$cstor{SIZ}{$size}{"$dir/$file"} = 1; # Index by size
+		}
+	else
+		{
+#		print "UNKNOWN: $dir/$file\n";
+		}
+	}
+
+}
+
+sub handle_args
+{
+my @args = @_;
+
+if(@args == 0)
+	{die "Usage: finddups [DIRNAME]\n";}
+
+foreach my $dircand (@args)
+	{
+	if(! -d $args[0])
+		{die "Usage: finddups [DIRNAME]...\n";}
+	}
+return @args;
+}
+
+sub get_md5
+{
+my ($file) = @_;
+open(IFIL, $file) || die "Could not read $file:$!\n";
+local $/; # slurrp
+my $fdat = readline(IFIL);
+close(IFIL);
+return md5($fdat);
+}
+
+sub format_md5
+{
+my ($in) = @_;
+my $fmt = encode_base64($in);
+chomp $fmt;
+$fmt =~ s/==$//g;
+return $fmt;
+}
+

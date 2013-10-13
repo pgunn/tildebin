@@ -1,0 +1,18 @@
+#!/bin/sh
+
+echo "******************************************"
+echo "* Connecting...                          *"
+echo "******************************************"
+echo "Sample query:"
+echo ""
+echo "SELECT urls.rpath,rating,artists.name,albums.name,title"
+echo "FROM tracks JOIN statistics JOIN artists JOIN albums JOIN urls"
+echo "WHERE tracks.url=statistics.url AND tracks.artist=artists.id"
+echo "AND albums.id = tracks.album AND urls.id=tracks.url ORDER BY urls.rpath;"
+echo ""
+echo "***** Have Fun *****"
+echo ""
+
+cd ~/.kde/share/apps/amarok
+mysql -S sock amarok
+

@@ -1,0 +1,20 @@
+#!/usr/bin/perl
+
+`killall mpg123 >/dev/null 2>/dev/null`;
+sleep(1);
+$homedir = $ENV{"HOME"};
+open(SFILE, $homedir . "/.radio") || die "Cannot open ~/.radio file";
+while(<SFILE>)
+	{
+	next if /^\s*#/;	# Skip comment lines
+	next if /^\s*$/;	# Skip blank lines
+	s/#.*//g;		# Remove comment portions
+	chomp;
+	push(@stations, $_);	# Save anything else we have left
+	}
+close(SFILE);
+
+$chosen = $stations[int(rand($#stations + 1))];	# Choose a random station
+
+print "Connecting to station [$chosen]\n";
+`exec mplayer -cache 50 $chosen`;

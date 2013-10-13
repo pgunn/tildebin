@@ -1,0 +1,32 @@
+#!/usr/bin/perl -w
+
+# Find directories under current that have less than 4 files
+
+opendir(HERE, '.') || die "Could not open present directory\n";
+my @dirs = grep {-d $_}
+	   grep {!/^\./}
+		readdir(HERE);
+closedir(HERE);
+
+foreach my $subdir (@dirs)
+	{
+	my $subs = children($subdir);
+	if($subs < 4)
+		{
+		print "$subdir\n";
+		}
+	}
+
+sub children
+{
+my $kids = 0;
+opendir(CHILD, $_[0]) || die "Could not open subdir $_[0]:$!\n";
+map
+	{$kids++;}
+	grep {!/^\./}
+	readdir(CHILD);
+
+closedir(CHILD);
+return $kids;
+}
+

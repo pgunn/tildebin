@@ -1,0 +1,5 @@
+#!/bin/sh
+# Use like so: lsrsync rsync://updates.laptop.org/
+
+exec rsync --list-only $*
+

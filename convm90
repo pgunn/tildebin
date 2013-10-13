@@ -1,0 +1,28 @@
+#!/usr/bin/perl -w
+
+use strict;
+
+################
+# See conf90, does the reverse.
+
+foreach my $file (@ARGV)
+	{
+	if(! -f $file)
+		{
+		die "Bad file $file\n"; 
+		}
+	if($file =~ /\//)
+		{
+		die "No path support. You must be in same directory as the file.\n";
+		}
+	if(! -d "raw")
+		{
+		mkdir("raw");
+		}
+	system("/bin/mv", $file, "raw/");
+	my $filec = $file;
+	$filec =~ s/\.jpg/_r\.jpg/;
+	system("convert", "-rotate", "270", "raw/$file", $filec);
+	print "$file => $filec\n";
+	}
+
