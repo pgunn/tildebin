@@ -1,0 +1,80 @@
+#!/usr/bin/perl -w
+
+use strict;
+
+main();
+
+###################
+
+sub main
+{
+my $psn = q{/proc/sys/net};
+my $ipv4 = qq{$psn/ipv4};
+my $netcore = qq{$psn/core};
+my $netfilter = qq{$ipv4/netfilter};
+
+print "local_port_range: " . read_v("$ipv4/ip_local_port_range");
+note("Should probably be 2000-65530 or similar");
+print "somaxconn: " . read_v("$netcore/somaxconn");
+print "tcp_max_syn_backlog: " . read_v("$ipv4/tcp_max_syn_backlog");
+note("4096 is reasonable. TCP cousin to somaxconn.");
+note("Size of buffer for connections waiting to be handled by software");
+print "file-max: " . read_v("/proc/sys/fs/file-max");
+
+print "ipv4_conntrack_max: " . read_v("$netfilter/ip_conntrack_max");
+print "ipv4_conntrack_buckets: " . read_v("$netfilter/ip_conntrack_buckets");
+print "ipv4_conntrack_count: " . read_v("$netfilter/ip_conntrack_count");
+print "ipv4_generic_timeout: " . read_v("$netfilter/ip_generic_timeout");
+note("If you have enough ram, set buckets = max");
+
+print "tcp_mem (pages): " . read_v("$ipv4/tcp_mem");
+note("Auto-tuned by kernel, but you can increase if you like");
+print "tcp_rmem (bytes): " . read_v("$ipv4/tcp_rmem");
+note("Per-socket buffer. Can't be bigger than net.core version");
+note("16M is probably reasonable.");
+print "tcp_wmem (bytes): " . read_v("$ipv4/tcp_wmem");
+note("Per-socket buffer. Can't be bigger than net.core version");
+note("16M is probably reasonable.");
+print "tcp_max_orphans: " . read_v("$ipv4/tcp_max_orphans");
+
+print "udp_mem (pages): " . read_v("$ipv4/udp_mem");
+
+print "tcp_max_tw_buckets: " . read_v("$ipv4/tcp_max_tw_buckets");
+print "tcp_tw_reuse: " . read_v("$ipv4/tcp_tw_reuse");
+print "tcp_tw_recycle: " . read_v("$ipv4/tcp_tw_recycle");
+
+print "tcp_syn_retries: " . read_v("$ipv4/tcp_syn_retries");
+print "tcp_synack_retries: " . read_v("$ipv4/tcp_synack_retries");
+
+print "netdev_max_backlog: " . read_v("$netcore/netdev_max_backlog");
+note("2500 is reasonable");
+
+print "tcp_syncookies: " . read_v("$ipv4/tcp_syncookies");
+note("Anti-DOS, but hurts performance");
+
+# These are used for NAT, I think
+print "nf_conntrack_max: " . read_v("$psn/nf_conntrack_max");
+print "nf_conntrack (hashsize): " . read_v("/sys/module/nf_conntrack/parameters/hashsize");
+note("If you ever see 'nf_conntrac: table full, dropping packet' this is why");
+
+note("Generally, configure txqueuelen on your interfaces! Maybe ~5000");
+}
+
+
+sub note
+{
+my ($note) = @_;
+print "\t$note\n";
+}
+
+sub read_v
+{
+my ($file) = @_;
+if(! -f $file) {return "Notfound\n";}
+open(my $toread, $file) || return "Failed to open:$!\n";
+local $/;
+my $toret = readline($toread);
+close($toread);
+return $toret;
+}
+
