@@ -1,0 +1,9 @@
+#!/usr/bin/perl -w
+
+use strict;
+
+###############
+# Reverse order of arguments
+
+print join(" ", reverse(split(/ /, <>)));
+

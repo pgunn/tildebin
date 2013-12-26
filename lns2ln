@@ -1,0 +1,21 @@
+#!/usr/bin/perl -w
+
+use strict;
+
+###############
+# Join many lines into single lines, simply
+# Made slightly more complicated by newline-bookkeeping.
+
+
+my $first = <>;
+$first =~ tr/\r\f\n//d;
+print $first; # Always print the first line, no space-prefix.
+while(<>)
+	{
+	tr/\r\f\n//d;
+	next if(/^$/); # Skip blanks
+	s/ $//; # Remove trailing spaces
+	print " $_";
+	}
+print "\n";
+
