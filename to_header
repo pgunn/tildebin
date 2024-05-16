@@ -1,0 +1,38 @@
+#!/usr/bin/env python
+
+import argparse
+import code # for code.interact(local=dict(globals(), **locals()) ) debugging
+import sys
+
+######################
+# Show all lines up to a given header (text that starts a line)
+#
+# Yet another way to trim output. Potentially use in pipes.
+
+def main():
+	cfg = handle_args()
+	if cfg.file is None:
+		for line in sys.stdin:
+			if line.startswith(cfg.header):
+				sys.exit(0)
+			else:
+				print(line, end='')
+	else: # Got a file
+		with open(cfg.file, 'r') as fh:
+			for line in fh:
+				if line.startswith(cfg.header):
+					sys.exit(0)
+				else:
+					print(line, end='')
+
+
+def handle_args():
+	parser = argparse.ArgumentParser(description="Show all lines to header")
+	parser.add_argument("header",	help="String to look for")
+	parser.add_argument("file",	nargs='?', default=None, help="File to search (or don't provide for stdin)")
+	parser.add_argument("--verbose",	help="Be noisier")
+	ret = parser.parse_args()
+	return ret
+
+#####
+main()
