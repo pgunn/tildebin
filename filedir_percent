@@ -1,0 +1,43 @@
+#!/usr/bin/env python
+
+import argparse
+import code # for code.interact(local=dict(globals(), **locals()) ) debugging
+import os
+
+######################
+# filedir_percent
+#
+# Assuming a set of files is being copied over in sorted order,
+# estimate the percent of a current filename that the transfer is done.
+#
+# Imagine you're doing a big scp and you see the filenames scrolling by and want a feel
+# of how close you are
+
+def main():
+	cfg = handle_args()
+	enumfiles = os.listdir(cfg.dir)
+	# We could use enumfiles.index() with try/except if the user has a full filename, but my particular use case
+	# is better served by allowing partial matches with just the front part of a filename because programs like
+	# scp don't display the full fn but often show enough to disambiguate filenames. We risk that length not being enough
+	# to disambiguate though.
+
+	n = 0
+	for candidate in sorted(enumfiles):
+		#print(f"D: {candidate}") # Make sure sorting happens the way we think
+		if candidate.startswith(cfg.fn) or candidate.startswith(os.path.join(cfg.dir, cfg.fn)):
+			idx = n
+			print(f"Match found at {cfg.fn} and {candidate}\n\t(if you see more than one of these your partial is too partial)")
+		n += 1
+
+	percent = idx / len(enumfiles)
+	print(f"Completion is roughly {percent}")
+
+def handle_args():
+	parser = argparse.ArgumentParser(description="Estimate percent a filename is through a directory")
+	parser.add_argument("fn",	help="filename")
+	parser.add_argument("dir",	help="directory")
+	ret = parser.parse_args()
+	return ret
+
+#####
+main()
